@@ -10,7 +10,8 @@ defmodule GuitarVault.Vaults do
   import Ecto.Query, warn: false
   alias GuitarVault.Repo
   alias GuitarVault.Accounts.Scope
-  alias GuitarVault.Vaults.{Event, Guitar, Vault, Vaultable}
+  alias GuitarVault.Uploads
+  alias GuitarVault.Vaults.{Event, Guitar, Image, Vault, Vaultable}
 
   ## Vaults
 
@@ -51,7 +52,7 @@ defmodule GuitarVault.Vaults do
     Vaultable
     |> where([v], v.vault_id == ^vault.id and v.id == ^id)
     |> Repo.one!()
-    |> Repo.preload([:guitar, events: events_query()])
+    |> Repo.preload([:guitar, :images, events: {events_query(), :images}])
   end
 
   defp events_query do
@@ -124,16 +125,84 @@ defmodule GuitarVault.Vaults do
 
   @doc "Deletes a history event belonging to the caller's vault."
   def delete_event(%Scope{} = scope, id) do
+    scope
+    |> scoped_event!(id)
+    |> Repo.delete()
+  end
+
+  ## Images
+
+  @doc """
+  Attaches an already-stored image (see `GuitarVault.Uploads.store/2`) to a
+  vaultable or event in the caller's vault.
+
+  `attrs` must include `:path` and may include `:description` and
+  `:content_type`.
+  """
+  def add_image(%Scope{} = scope, %Vaultable{} = instrument, attrs) do
+    vault = get_or_create_vault!(scope)
+    true = instrument.vault_id == vault.id
+
+    %Image{vaultable_id: instrument.id}
+    |> Image.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  def add_image(%Scope{} = scope, %Event{} = event, attrs) do
+    # Verify the event belongs to the caller's vault before attaching.
+    _ = scoped_event!(scope, event.id)
+
+    %Image{event_id: event.id}
+    |> Image.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc "Returns a changeset for editing an image's metadata (description)."
+  def change_image(%Image{} = image, attrs \\ %{}) do
+    Image.metadata_changeset(image, attrs)
+  end
+
+  @doc "Updates an image's metadata (e.g. its description)."
+  def update_image(%Scope{} = scope, id, attrs) do
+    scope
+    |> get_image!(id)
+    |> Image.metadata_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc "Deletes an image (row and file) belonging to the caller's vault."
+  def delete_image(%Scope{} = scope, id) do
+    image = get_image!(scope, id)
+
+    with {:ok, image} <- Repo.delete(image) do
+      Uploads.delete(image.path)
+      {:ok, image}
+    end
+  end
+
+  defp get_image!(%Scope{} = scope, id) do
     vault = get_or_create_vault!(scope)
 
-    event =
-      from(e in Event,
-        join: v in Vaultable,
-        on: v.id == e.vaultable_id,
-        where: e.id == ^id and v.vault_id == ^vault.id
-      )
-      |> Repo.one!()
+    from(i in Image,
+      left_join: v in Vaultable,
+      on: v.id == i.vaultable_id,
+      left_join: ev in Event,
+      on: ev.id == i.event_id,
+      left_join: evv in Vaultable,
+      on: evv.id == ev.vaultable_id,
+      where: i.id == ^id and (v.vault_id == ^vault.id or evv.vault_id == ^vault.id)
+    )
+    |> Repo.one!()
+  end
 
-    Repo.delete(event)
+  defp scoped_event!(%Scope{} = scope, id) do
+    vault = get_or_create_vault!(scope)
+
+    from(e in Event,
+      join: v in Vaultable,
+      on: v.id == e.vaultable_id,
+      where: e.id == ^id and v.vault_id == ^vault.id
+    )
+    |> Repo.one!()
   end
 end

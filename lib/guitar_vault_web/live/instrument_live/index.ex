@@ -1,6 +1,7 @@
 defmodule GuitarVaultWeb.InstrumentLive.Index do
   use GuitarVaultWeb, :live_view
 
+  alias GuitarVault.Uploads
   alias GuitarVault.Vaults
   alias GuitarVault.Vaults.Event
 
@@ -89,6 +90,84 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                 <:item title="Year">{@selected.guitar && @selected.guitar.year}</:item>
                 <:item title="Color">{@selected.guitar && @selected.guitar.color}</:item>
               </.list>
+
+              <div class="mt-8">
+                <.header>
+                  Images
+                  <:subtitle>Photos of this instrument.</:subtitle>
+                </.header>
+
+                <div
+                  :if={@selected.images != []}
+                  class="my-4 grid grid-cols-2 gap-4 sm:grid-cols-3"
+                >
+                  <figure
+                    :for={image <- @selected.images}
+                    class="space-y-2 rounded-lg border border-base-content/10 p-2"
+                  >
+                    <img
+                      src={Uploads.url(image.path)}
+                      alt={image.description}
+                      class="aspect-square w-full rounded object-cover"
+                    />
+                    <form phx-submit="update_image" class="flex gap-2">
+                      <input type="hidden" name="image_id" value={image.id} />
+                      <input
+                        type="text"
+                        name="description"
+                        value={image.description}
+                        placeholder="Add a description"
+                        class="input input-sm input-bordered w-full"
+                      />
+                      <.button type="submit" class="btn btn-sm">Save</.button>
+                    </form>
+                    <.link
+                      phx-click={JS.push("delete_image", value: %{id: image.id})}
+                      data-confirm="Delete this image?"
+                      class="text-sm opacity-60 hover:opacity-100"
+                    >
+                      Delete
+                    </.link>
+                  </figure>
+                </div>
+
+                <p :if={@selected.images == []} class="text-sm opacity-60">No images yet.</p>
+
+                <form
+                  id="upload-form"
+                  phx-submit="save_images"
+                  phx-change="validate_upload"
+                  class="mt-4 space-y-3"
+                >
+                  <.live_file_input upload={@uploads.images} />
+
+                  <div :if={@uploads.images.entries != []} class="flex flex-wrap gap-3">
+                    <div :for={entry <- @uploads.images.entries} class="space-y-1">
+                      <.live_img_preview entry={entry} class="size-20 rounded object-cover" />
+                      <button
+                        type="button"
+                        phx-click="cancel_upload"
+                        phx-value-ref={entry.ref}
+                        class="block text-xs opacity-60 hover:opacity-100"
+                      >
+                        Cancel
+                      </button>
+                      <p
+                        :for={err <- upload_errors(@uploads.images, entry)}
+                        class="text-xs text-error"
+                      >
+                        {upload_error_to_string(err)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p :for={err <- upload_errors(@uploads.images)} class="text-xs text-error">
+                    {upload_error_to_string(err)}
+                  </p>
+
+                  <.button type="submit" class="btn btn-primary btn-sm">Upload images</.button>
+                </form>
+              </div>
 
               <div class="mt-8">
                 <.header>
@@ -195,7 +274,12 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
      |> assign(:instruments, Vaults.list_instruments(scope))
      |> assign(:selected, nil)
      |> assign(:form, new_form())
-     |> assign(:event_form, new_event_form())}
+     |> assign(:event_form, new_event_form())
+     |> allow_upload(:images,
+       accept: ~w(.jpg .jpeg .png .webp),
+       max_entries: 8,
+       max_file_size: 10_000_000
+     )}
   end
 
   @impl true
@@ -310,6 +394,58 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
     {:noreply, assign(socket, :selected, instrument)}
   end
 
+  def handle_event("validate_upload", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("cancel_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :images, ref)}
+  end
+
+  def handle_event("save_images", _params, socket) do
+    scope = socket.assigns.current_scope
+    instrument = socket.assigns.selected
+
+    uploaded =
+      consume_uploaded_entries(socket, :images, fn %{path: path}, entry ->
+        filename = Uploads.store(path, entry.client_name)
+        {:ok, %{path: filename, content_type: entry.client_type}}
+      end)
+
+    for attrs <- uploaded do
+      {:ok, _image} = Vaults.add_image(scope, instrument, attrs)
+    end
+
+    socket =
+      if uploaded == [] do
+        socket
+      else
+        socket
+        |> put_flash(:info, "#{length(uploaded)} image(s) uploaded.")
+        |> assign(:selected, Vaults.get_instrument!(scope, instrument.id))
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("update_image", %{"image_id" => id, "description" => description}, socket) do
+    scope = socket.assigns.current_scope
+    {:ok, _image} = Vaults.update_image(scope, id, %{"description" => description})
+
+    {:noreply,
+     socket
+     |> put_flash(:info, "Image updated.")
+     |> assign(:selected, Vaults.get_instrument!(scope, socket.assigns.selected.id))}
+  end
+
+  def handle_event("delete_image", %{"id" => id}, socket) do
+    scope = socket.assigns.current_scope
+    {:ok, _} = Vaults.delete_image(scope, id)
+
+    {:noreply,
+     assign(socket, :selected, Vaults.get_instrument!(scope, socket.assigns.selected.id))}
+  end
+
   defp form_base(%{assigns: %{live_action: :edit, selected: selected}}), do: selected
   defp form_base(_socket), do: Vaults.new_guitar()
 
@@ -319,4 +455,9 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
   defp flash_message(:edit), do: "Instrument updated."
   defp flash_message(_), do: "Instrument added to your vault."
+
+  defp upload_error_to_string(:too_large), do: "File is too large (max 10 MB)."
+  defp upload_error_to_string(:too_many_files), do: "Too many files (max 8)."
+  defp upload_error_to_string(:not_accepted), do: "Unsupported file type."
+  defp upload_error_to_string(_), do: "Invalid file."
 end

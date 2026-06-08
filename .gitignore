@@ -39,3 +39,6 @@ npm-debug.log
 *.db
 *.db-*
 
+
+# User-uploaded files
+/priv/uploads/

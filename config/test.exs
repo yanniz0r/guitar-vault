@@ -35,3 +35,6 @@ config :phoenix, :plug_init_mode, :runtime
 # Enable helpful, but potentially expensive runtime checks
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
+
+# Store uploads in a throwaway tmp dir during tests
+config :guitar_vault, :uploads_dir, Path.join(System.tmp_dir!(), "guitar_vault_test_uploads")

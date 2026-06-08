@@ -2,7 +2,7 @@ defmodule GuitarVault.Vaults.Event do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias GuitarVault.Vaults.Vaultable
+  alias GuitarVault.Vaults.{Image, Vaultable}
 
   @moduledoc """
   A dated entry in a vaultable's history, e.g. when it was built, bought,
@@ -25,6 +25,7 @@ defmodule GuitarVault.Vaults.Event do
     field :description, :string
 
     belongs_to :vaultable, Vaultable
+    has_many :images, Image
 
     timestamps(type: :utc_datetime)
   end
@@ -83,7 +84,11 @@ defmodule GuitarVault.Vaults.Event do
     earliest = Enum.min_by(successors, & &1.date, Date)
 
     if Date.compare(date, earliest.date) == :gt do
-      add_error(changeset, :date, "must be on or before the #{earliest.kind} date (#{earliest.date})")
+      add_error(
+        changeset,
+        :date,
+        "must be on or before the #{earliest.kind} date (#{earliest.date})"
+      )
     else
       changeset
     end

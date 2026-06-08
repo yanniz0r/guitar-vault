@@ -106,7 +106,10 @@ defmodule GuitarVault.VaultsTest do
 
     test "requires a description for modification events", %{scope: scope, instrument: instrument} do
       assert {:error, changeset} =
-               Vaults.add_event(scope, instrument, %{"kind" => "modification", "date" => "2022-01-01"})
+               Vaults.add_event(scope, instrument, %{
+                 "kind" => "modification",
+                 "date" => "2022-01-01"
+               })
 
       assert "can't be blank" in errors_on(changeset).description
 
@@ -118,8 +121,12 @@ defmodule GuitarVault.VaultsTest do
                })
     end
 
-    test "enforces built <= bought <= sold ordering by date", %{scope: scope, instrument: instrument} do
-      {:ok, _} = Vaults.add_event(scope, instrument, %{"kind" => "bought", "date" => "2020-06-15"})
+    test "enforces built <= bought <= sold ordering by date", %{
+      scope: scope,
+      instrument: instrument
+    } do
+      {:ok, _} =
+        Vaults.add_event(scope, instrument, %{"kind" => "bought", "date" => "2020-06-15"})
 
       # built must be on or before the bought date
       assert {:error, changeset} =
@@ -167,6 +174,43 @@ defmodule GuitarVault.VaultsTest do
 
       other_scope = user_scope_fixture()
       assert_raise Ecto.NoResultsError, fn -> Vaults.delete_event(other_scope, event.id) end
+    end
+  end
+
+  describe "images" do
+    setup %{scope: scope} do
+      {:ok, instrument} = Vaults.create_guitar(scope, @valid_attrs)
+      %{instrument: instrument}
+    end
+
+    test "attaches images to a vaultable and to an event", %{scope: scope, instrument: instrument} do
+      assert {:ok, img} =
+               Vaults.add_image(scope, instrument, %{path: "a.jpg", description: "front"})
+
+      {:ok, event} =
+        Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2019-01-01"})
+
+      assert {:ok, _} = Vaults.add_image(scope, event, %{path: "b.jpg"})
+
+      reloaded = Vaults.get_instrument!(scope, instrument.id)
+      assert [%{path: "a.jpg", description: "front"}] = reloaded.images
+      assert [%{images: [%{path: "b.jpg"}]}] = reloaded.events
+
+      assert {:ok, updated} = Vaults.update_image(scope, img.id, %{"description" => "back"})
+      assert updated.description == "back"
+    end
+
+    test "delete_image removes the row and is scoped to the vault", %{
+      scope: scope,
+      instrument: instrument
+    } do
+      {:ok, img} = Vaults.add_image(scope, instrument, %{path: "a.jpg"})
+
+      other_scope = user_scope_fixture()
+      assert_raise Ecto.NoResultsError, fn -> Vaults.delete_image(other_scope, img.id) end
+
+      assert {:ok, _} = Vaults.delete_image(scope, img.id)
+      assert Vaults.get_instrument!(scope, instrument.id).images == []
     end
   end
 

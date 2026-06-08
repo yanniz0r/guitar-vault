@@ -26,6 +26,13 @@ defmodule GuitarVaultWeb.Endpoint do
     gzip: not code_reloading?,
     only: GuitarVaultWeb.static_paths()
 
+  # Serve user-uploaded files from priv/uploads (kept separate from the
+  # digested assets in priv/static). See GuitarVault.Uploads.
+  plug Plug.Static,
+    at: "/uploads",
+    from: {:guitar_vault, "priv/uploads"},
+    gzip: false
+
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
   if code_reloading? do

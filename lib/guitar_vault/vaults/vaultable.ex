@@ -2,7 +2,7 @@ defmodule GuitarVault.Vaults.Vaultable do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias GuitarVault.Vaults.{Event, Guitar, Vault}
+  alias GuitarVault.Vaults.{Event, Guitar, Image, Vault}
 
   @moduledoc """
   Generic instrument stored in the vault.
@@ -18,6 +18,7 @@ defmodule GuitarVault.Vaults.Vaultable do
     belongs_to :vault, Vault
     has_one :guitar, Guitar, on_replace: :update
     has_many :events, Event
+    has_many :images, Image
 
     timestamps(type: :utc_datetime)
   end
