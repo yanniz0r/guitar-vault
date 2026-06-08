@@ -120,6 +120,7 @@ defmodule GuitarVault.Vaults do
     %Event{vaultable_id: instrument.id}
     |> Event.changeset(attrs)
     |> Event.validate_order(siblings)
+    |> Event.validate_uniqueness(siblings)
     |> Repo.insert()
   end
 

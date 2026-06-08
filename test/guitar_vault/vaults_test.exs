@@ -149,6 +149,25 @@ defmodule GuitarVault.VaultsTest do
                Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2023-03-03"})
     end
 
+    test "allows only one built event per instrument", %{scope: scope, instrument: instrument} do
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2019-01-01"})
+
+      assert {:error, changeset} =
+               Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2019-02-02"})
+
+      assert [msg] = errors_on(changeset).kind
+      assert msg =~ "only one built event is allowed"
+
+      # other kinds remain unrestricted
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{
+                 "kind" => "modification",
+                 "date" => "2021-01-01",
+                 "description" => "setup"
+               })
+    end
+
     test "modification events are not constrained by the ordering", %{
       scope: scope,
       instrument: instrument

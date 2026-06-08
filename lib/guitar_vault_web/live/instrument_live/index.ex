@@ -363,6 +363,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
       %Event{}
       |> Vaults.change_event(params)
       |> Event.validate_order(socket.assigns.selected.events)
+      |> Event.validate_uniqueness(socket.assigns.selected.events)
       |> Map.put(:action, :validate)
 
     {:noreply, assign(socket, :event_form, to_form(changeset, as: "event"))}

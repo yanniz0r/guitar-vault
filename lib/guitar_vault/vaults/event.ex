@@ -19,6 +19,10 @@ defmodule GuitarVault.Vaults.Event do
   # list to change the enforced sequence.
   @ordered_kinds ~w(built bought sold)
 
+  # Kinds that may occur at most once per instrument. Add kinds here to make
+  # them unique.
+  @unique_kinds ~w(built)
+
   schema "vaultable_events" do
     field :kind, :string
     field :date, :date
@@ -63,6 +67,20 @@ defmodule GuitarVault.Vaults.Event do
       changeset
       |> enforce_after(date, Enum.filter(constrained, &(position(&1.kind) < pos)))
       |> enforce_before(date, Enum.filter(constrained, &(position(&1.kind) > pos)))
+    end
+  end
+
+  @doc """
+  Validates that a `@unique_kinds` event isn't being added when one of the same
+  kind already exists. `siblings` is the instrument's other events.
+  """
+  def validate_uniqueness(changeset, siblings) do
+    kind = get_field(changeset, :kind)
+
+    if kind in @unique_kinds and Enum.any?(siblings, &(&1.kind == kind)) do
+      add_error(changeset, :kind, "already recorded — only one #{kind} event is allowed")
+    else
+      changeset
     end
   end
 
