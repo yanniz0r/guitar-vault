@@ -104,6 +104,60 @@ defmodule GuitarVault.VaultsTest do
       refute changeset.valid?
     end
 
+    test "requires a description for modification events", %{scope: scope, instrument: instrument} do
+      assert {:error, changeset} =
+               Vaults.add_event(scope, instrument, %{"kind" => "modification", "date" => "2022-01-01"})
+
+      assert "can't be blank" in errors_on(changeset).description
+
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{
+                 "kind" => "modification",
+                 "date" => "2022-01-01",
+                 "description" => "new pickups"
+               })
+    end
+
+    test "enforces built <= bought <= sold ordering by date", %{scope: scope, instrument: instrument} do
+      {:ok, _} = Vaults.add_event(scope, instrument, %{"kind" => "bought", "date" => "2020-06-15"})
+
+      # built must be on or before the bought date
+      assert {:error, changeset} =
+               Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2021-01-01"})
+
+      assert [msg] = errors_on(changeset).date
+      assert msg =~ "on or before the bought date"
+
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2019-01-01"})
+
+      # sold must be on or after the bought date
+      assert {:error, changeset} =
+               Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2020-01-01"})
+
+      assert [msg] = errors_on(changeset).date
+      assert msg =~ "on or after the bought date"
+
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2023-03-03"})
+    end
+
+    test "modification events are not constrained by the ordering", %{
+      scope: scope,
+      instrument: instrument
+    } do
+      {:ok, _} = Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2019-01-01"})
+      {:ok, _} = Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2020-01-01"})
+
+      # a modification dated outside the built/sold window is still allowed
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{
+                 "kind" => "modification",
+                 "date" => "2030-01-01",
+                 "description" => "refret"
+               })
+    end
+
     test "deletes an event scoped to the caller's vault", %{scope: scope, instrument: instrument} do
       {:ok, event} =
         Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2021-09-09"})

@@ -114,8 +114,11 @@ defmodule GuitarVault.Vaults do
     vault = get_or_create_vault!(scope)
     true = instrument.vault_id == vault.id
 
+    siblings = Repo.all(from e in Event, where: e.vaultable_id == ^instrument.id)
+
     %Event{vaultable_id: instrument.id}
     |> Event.changeset(attrs)
+    |> Event.validate_order(siblings)
     |> Repo.insert()
   end
 

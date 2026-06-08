@@ -132,7 +132,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                       field={@event_form[:kind]}
                       type="select"
                       label="Event"
-                      options={[{"Built", "built"}, {"Bought", "bought"}, {"Sold", "sold"}]}
+                      options={Enum.map(Event.kinds(), &{String.capitalize(&1), &1})}
                     />
                     <.input field={@event_form[:date]} type="date" label="Date" />
                     <.input field={@event_form[:description]} label="Description" />
@@ -275,7 +275,12 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
   end
 
   def handle_event("validate_event", %{"event" => params}, socket) do
-    changeset = Vaults.change_event(%Event{}, params) |> Map.put(:action, :validate)
+    changeset =
+      %Event{}
+      |> Vaults.change_event(params)
+      |> Event.validate_order(socket.assigns.selected.events)
+      |> Map.put(:action, :validate)
+
     {:noreply, assign(socket, :event_form, to_form(changeset, as: "event"))}
   end
 
