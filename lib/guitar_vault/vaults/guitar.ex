@@ -13,16 +13,24 @@ defmodule GuitarVault.Vaults.Guitar do
     field :model, :string
     field :brand, :string
     field :year, :integer
+    field :color, :string
+    field :kind, :string, default: "guitar"
 
     belongs_to :vaultable, Vaultable
 
     timestamps(type: :utc_datetime)
   end
 
+  @kinds ~w(guitar bass)
+
+  @doc "The available guitar kinds."
+  def kinds, do: @kinds
+
   @doc false
   def changeset(guitar, attrs) do
     guitar
-    |> cast(attrs, [:model, :brand, :year])
-    |> validate_required([:brand, :model])
+    |> cast(attrs, [:model, :brand, :year, :color, :kind])
+    |> validate_required([:brand, :model, :kind])
+    |> validate_inclusion(:kind, @kinds)
   end
 end

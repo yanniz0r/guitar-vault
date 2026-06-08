@@ -13,12 +13,19 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
       </.header>
 
       <.form for={@form} id="instrument-form" phx-change="validate" phx-submit="save">
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-7 lg:items-end">
           <.input field={@form[:name]} label="Name" />
           <.inputs_for :let={gf} field={@form[:guitar]}>
+            <.input
+              field={gf[:kind]}
+              type="select"
+              label="Type"
+              options={[{"Guitar", "guitar"}, {"Bass", "bass"}]}
+            />
             <.input field={gf[:brand]} label="Brand" />
             <.input field={gf[:model]} label="Model" />
             <.input field={gf[:year]} type="number" label="Year" />
+            <.input field={gf[:color]} label="Color" />
           </.inputs_for>
           <.button phx-disable-with="Adding..." class="btn btn-primary">
             Add guitar
@@ -28,6 +35,9 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
       <.table id="instruments" rows={@streams.instruments}>
         <:col :let={{_id, instrument}} label="Name">{instrument.name}</:col>
+        <:col :let={{_id, instrument}} label="Type">
+          {instrument.guitar && String.capitalize(instrument.guitar.kind)}
+        </:col>
         <:col :let={{_id, instrument}} label="Brand">
           {instrument.guitar && instrument.guitar.brand}
         </:col>
@@ -36,6 +46,9 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
         </:col>
         <:col :let={{_id, instrument}} label="Year">
           {instrument.guitar && instrument.guitar.year}
+        </:col>
+        <:col :let={{_id, instrument}} label="Color">
+          {instrument.guitar && instrument.guitar.color}
         </:col>
         <:action :let={{id, instrument}}>
           <.link

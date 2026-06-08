@@ -45,8 +45,18 @@ defmodule GuitarVault.VaultsTest do
   describe "list_instruments/1 and delete_instrument/2" do
     test "lists only the caller's instruments and deletes them", %{scope: scope} do
       other_scope = user_scope_fixture()
-      {:ok, mine} = Vaults.create_guitar(scope, %{"name" => "Mine", "guitar" => %{"brand" => "B", "model" => "M"}})
-      {:ok, _theirs} = Vaults.create_guitar(other_scope, %{"name" => "Theirs", "guitar" => %{"brand" => "B", "model" => "M"}})
+
+      {:ok, mine} =
+        Vaults.create_guitar(scope, %{
+          "name" => "Mine",
+          "guitar" => %{"brand" => "B", "model" => "M"}
+        })
+
+      {:ok, _theirs} =
+        Vaults.create_guitar(other_scope, %{
+          "name" => "Theirs",
+          "guitar" => %{"brand" => "B", "model" => "M"}
+        })
 
       assert [listed] = Vaults.list_instruments(scope)
       assert listed.id == mine.id
