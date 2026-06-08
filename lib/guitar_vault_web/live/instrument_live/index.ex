@@ -17,7 +17,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
         <aside class="w-1/5 min-w-44 shrink-0 space-y-3">
           <.link
             patch={~p"/instruments"}
-            class={["btn btn-sm w-full", is_nil(@selected) && "btn-primary"]}
+            class={["btn btn-sm w-full", @live_action == :index && "btn-primary"]}
           >
             + New
           </.link>
@@ -46,61 +46,89 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
         <%!-- Detail (~4/5) --%>
         <section class="w-4/5">
-          <%= if @selected do %>
-            <.header>
-              {@selected.name}
-              <:subtitle>{@selected.guitar && String.capitalize(@selected.guitar.kind)}</:subtitle>
-              <:actions>
-                <.link
-                  phx-click={JS.push("delete", value: %{id: @selected.id})}
-                  data-confirm="Delete this instrument?"
-                  class="btn btn-sm"
-                >
-                  Delete
+          <%= cond do %>
+            <% @live_action == :edit -> %>
+              <.header>
+                Edit {@selected.name}
+                <:subtitle>Update the details of this instrument.</:subtitle>
+              </.header>
+
+              <.instrument_form form={@form} submit_label="Save changes">
+                <.link patch={~p"/instruments/#{@selected.id}"} class="btn btn-ghost">
+                  Cancel
                 </.link>
-              </:actions>
-            </.header>
+              </.instrument_form>
+            <% @selected -> %>
+              <.header>
+                {@selected.name}
+                <:subtitle>
+                  {@selected.guitar && String.capitalize(@selected.guitar.kind)}
+                </:subtitle>
+                <:actions>
+                  <.link patch={~p"/instruments/#{@selected.id}/edit"} class="btn btn-sm">
+                    Edit
+                  </.link>
+                  <.link
+                    phx-click={JS.push("delete", value: %{id: @selected.id})}
+                    data-confirm="Delete this instrument?"
+                    class="btn btn-sm"
+                  >
+                    Delete
+                  </.link>
+                </:actions>
+              </.header>
 
-            <.list>
-              <:item title="Name">{@selected.name}</:item>
-              <:item title="Type">
-                {@selected.guitar && String.capitalize(@selected.guitar.kind)}
-              </:item>
-              <:item title="Brand">{@selected.guitar && @selected.guitar.brand}</:item>
-              <:item title="Model">{@selected.guitar && @selected.guitar.model}</:item>
-              <:item title="Year">{@selected.guitar && @selected.guitar.year}</:item>
-              <:item title="Color">{@selected.guitar && @selected.guitar.color}</:item>
-            </.list>
-          <% else %>
-            <.header>
-              Add an instrument
-              <:subtitle>Add a guitar or bass to your vault.</:subtitle>
-            </.header>
+              <.list>
+                <:item title="Name">{@selected.name}</:item>
+                <:item title="Type">
+                  {@selected.guitar && String.capitalize(@selected.guitar.kind)}
+                </:item>
+                <:item title="Brand">{@selected.guitar && @selected.guitar.brand}</:item>
+                <:item title="Model">{@selected.guitar && @selected.guitar.model}</:item>
+                <:item title="Year">{@selected.guitar && @selected.guitar.year}</:item>
+                <:item title="Color">{@selected.guitar && @selected.guitar.color}</:item>
+              </.list>
+            <% true -> %>
+              <.header>
+                Add an instrument
+                <:subtitle>Add a guitar or bass to your vault.</:subtitle>
+              </.header>
 
-            <.form for={@form} id="instrument-form" phx-change="validate" phx-submit="save">
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <.input field={@form[:name]} label="Name" />
-                <.inputs_for :let={gf} field={@form[:guitar]}>
-                  <.input
-                    field={gf[:kind]}
-                    type="select"
-                    label="Type"
-                    options={[{"Guitar", "guitar"}, {"Bass", "bass"}]}
-                  />
-                  <.input field={gf[:brand]} label="Brand" />
-                  <.input field={gf[:model]} label="Model" />
-                  <.input field={gf[:year]} type="number" label="Year" />
-                  <.input field={gf[:color]} label="Color" />
-                </.inputs_for>
-              </div>
-              <.button phx-disable-with="Adding..." class="btn btn-primary mt-4">
-                Add instrument
-              </.button>
-            </.form>
+              <.instrument_form form={@form} submit_label="Add instrument" />
           <% end %>
         </section>
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :form, Phoenix.HTML.Form, required: true
+  attr :submit_label, :string, required: true
+  slot :inner_block, doc: "extra actions rendered next to the submit button"
+
+  defp instrument_form(assigns) do
+    ~H"""
+    <.form for={@form} id="instrument-form" phx-change="validate" phx-submit="save">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <.input field={@form[:name]} label="Name" />
+        <.inputs_for :let={gf} field={@form[:guitar]}>
+          <.input
+            field={gf[:kind]}
+            type="select"
+            label="Type"
+            options={[{"Guitar", "guitar"}, {"Bass", "bass"}]}
+          />
+          <.input field={gf[:brand]} label="Brand" />
+          <.input field={gf[:model]} label="Model" />
+          <.input field={gf[:year]} type="number" label="Year" />
+          <.input field={gf[:color]} label="Color" />
+        </.inputs_for>
+      </div>
+      <div class="mt-4 flex gap-2">
+        <.button phx-disable-with="Saving..." class="btn btn-primary">{@submit_label}</.button>
+        {render_slot(@inner_block)}
+      </div>
+    </.form>
     """
   end
 
@@ -110,25 +138,46 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
     {:ok,
      socket
-     |> assign(:form, to_form(Vaults.change_guitar(), as: "instrument"))
      |> assign(:instruments, Vaults.list_instruments(scope))
-     |> assign(:selected, nil)}
+     |> assign(:selected, nil)
+     |> assign(:form, new_form())}
   end
 
   @impl true
-  def handle_params(%{"id" => id}, _uri, socket) do
-    instrument = Vaults.get_instrument!(socket.assigns.current_scope, id)
-    {:noreply, assign(socket, selected: instrument, page_title: instrument.name)}
+  def handle_params(params, _uri, socket) do
+    {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
-  def handle_params(_params, _uri, socket) do
-    {:noreply, assign(socket, selected: nil, page_title: "Instruments")}
+  defp apply_action(socket, :index, _params) do
+    socket
+    |> assign(:selected, nil)
+    |> assign(:page_title, "Instruments")
+    |> assign(:form, new_form())
+  end
+
+  defp apply_action(socket, :show, %{"id" => id}) do
+    instrument = Vaults.get_instrument!(socket.assigns.current_scope, id)
+
+    socket
+    |> assign(:selected, instrument)
+    |> assign(:page_title, instrument.name)
+  end
+
+  defp apply_action(socket, :edit, %{"id" => id}) do
+    instrument = Vaults.get_instrument!(socket.assigns.current_scope, id)
+
+    socket
+    |> assign(:selected, instrument)
+    |> assign(:page_title, "Edit #{instrument.name}")
+    |> assign(:form, to_form(Vaults.change_guitar(instrument), as: "instrument"))
   end
 
   @impl true
   def handle_event("validate", %{"instrument" => params}, socket) do
     changeset =
-      Vaults.change_guitar(Vaults.new_guitar(), params)
+      socket
+      |> form_base()
+      |> Vaults.change_guitar(params)
       |> Map.put(:action, :validate)
 
     {:noreply, assign(socket, :form, to_form(changeset, as: "instrument"))}
@@ -137,13 +186,19 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
   def handle_event("save", %{"instrument" => params}, socket) do
     scope = socket.assigns.current_scope
 
-    case Vaults.create_guitar(scope, params) do
+    result =
+      case socket.assigns.live_action do
+        :edit -> Vaults.update_instrument(scope, socket.assigns.selected, params)
+        _ -> Vaults.create_guitar(scope, params)
+      end
+
+    case result do
       {:ok, instrument} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Instrument added to your vault.")
+         |> put_flash(:info, flash_message(socket.assigns.live_action))
          |> assign(:instruments, Vaults.list_instruments(scope))
-         |> assign(:form, to_form(Vaults.change_guitar(), as: "instrument"))
+         |> assign(:form, new_form())
          |> push_patch(to: ~p"/instruments/#{instrument.id}")}
 
       {:error, changeset} ->
@@ -162,4 +217,12 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
      |> assign(:instruments, Vaults.list_instruments(scope))
      |> push_patch(to: ~p"/instruments")}
   end
+
+  defp form_base(%{assigns: %{live_action: :edit, selected: selected}}), do: selected
+  defp form_base(_socket), do: Vaults.new_guitar()
+
+  defp new_form, do: to_form(Vaults.change_guitar(), as: "instrument")
+
+  defp flash_message(:edit), do: "Instrument updated."
+  defp flash_message(_), do: "Instrument added to your vault."
 end

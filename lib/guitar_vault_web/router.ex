@@ -54,6 +54,7 @@ defmodule GuitarVaultWeb.Router do
       on_mount: [{GuitarVaultWeb.UserAuth, :require_authenticated}] do
       live "/instruments", InstrumentLive.Index, :index
       live "/instruments/:id", InstrumentLive.Index, :show
+      live "/instruments/:id/edit", InstrumentLive.Index, :edit
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
     end

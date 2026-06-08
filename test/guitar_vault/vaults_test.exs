@@ -42,6 +42,34 @@ defmodule GuitarVault.VaultsTest do
     end
   end
 
+  describe "update_instrument/3" do
+    test "updates the instrument name and nested guitar fields", %{scope: scope} do
+      {:ok, instrument} = Vaults.create_guitar(scope, @valid_attrs)
+
+      assert {:ok, updated} =
+               Vaults.update_instrument(scope, instrument, %{
+                 "name" => "Renamed",
+                 "guitar" => %{"brand" => "Gibson", "model" => "Les Paul", "kind" => "bass"}
+               })
+
+      assert updated.name == "Renamed"
+      assert updated.guitar.brand == "Gibson"
+      assert updated.guitar.kind == "bass"
+      # same underlying records, not duplicates
+      assert updated.id == instrument.id
+      assert [_] = Vaults.list_instruments(scope)
+    end
+
+    test "returns an error changeset on invalid data", %{scope: scope} do
+      {:ok, instrument} = Vaults.create_guitar(scope, @valid_attrs)
+
+      assert {:error, changeset} =
+               Vaults.update_instrument(scope, instrument, %{"name" => ""})
+
+      refute changeset.valid?
+    end
+  end
+
   describe "list_instruments/1 and delete_instrument/2" do
     test "lists only the caller's instruments and deletes them", %{scope: scope} do
       other_scope = user_scope_fixture()

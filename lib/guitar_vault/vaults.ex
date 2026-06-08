@@ -76,6 +76,21 @@ defmodule GuitarVault.Vaults do
     |> Repo.insert()
   end
 
+  @doc """
+  Updates a guitar instrument in the caller's vault.
+
+  The instrument must already belong to the caller and have its `:guitar`
+  preloaded (as returned by `get_instrument!/2`).
+  """
+  def update_instrument(%Scope{} = scope, %Vaultable{} = instrument, attrs) do
+    vault = get_or_create_vault!(scope)
+    true = instrument.vault_id == vault.id
+
+    instrument
+    |> Vaultable.guitar_changeset(attrs)
+    |> Repo.update()
+  end
+
   @doc "Deletes an instrument (and its guitar subtype) from the caller's vault."
   def delete_instrument(%Scope{} = scope, %Vaultable{} = instrument) do
     vault = get_or_create_vault!(scope)

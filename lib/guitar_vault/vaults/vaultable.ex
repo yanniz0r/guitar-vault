@@ -16,7 +16,7 @@ defmodule GuitarVault.Vaults.Vaultable do
     field :type, :string
 
     belongs_to :vault, Vault
-    has_one :guitar, Guitar
+    has_one :guitar, Guitar, on_replace: :update
 
     timestamps(type: :utc_datetime)
   end
