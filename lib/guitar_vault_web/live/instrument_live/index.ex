@@ -24,6 +24,18 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
             + New
           </.link>
 
+          <form phx-change="search" phx-submit="search">
+            <input
+              type="text"
+              name="q"
+              value={@search}
+              placeholder="Search…"
+              phx-debounce="200"
+              autocomplete="off"
+              class="input input-sm input-bordered w-full"
+            />
+          </form>
+
           <nav class="flex flex-col gap-1">
             <.link
               :for={instrument <- @instruments}
@@ -43,7 +55,9 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
             </.link>
           </nav>
 
-          <p :if={@instruments == []} class="text-sm opacity-60">No instruments yet.</p>
+          <p :if={@instruments == []} class="text-sm opacity-60">
+            {if @search == "", do: "No instruments yet.", else: "No matches."}
+          </p>
         </aside>
 
         <%!-- Detail (~4/5) --%>
@@ -267,11 +281,10 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
   @impl true
   def mount(_params, _session, socket) do
-    scope = socket.assigns.current_scope
-
     {:ok,
      socket
-     |> assign(:instruments, Vaults.list_instruments(scope))
+     |> assign(:search, "")
+     |> assign_instruments()
      |> assign(:selected, nil)
      |> assign(:form, new_form())
      |> assign(:event_form, new_event_form())
@@ -337,7 +350,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
         {:noreply,
          socket
          |> put_flash(:info, flash_message(socket.assigns.live_action))
-         |> assign(:instruments, Vaults.list_instruments(scope))
+         |> assign_instruments()
          |> assign(:form, new_form())
          |> push_patch(to: ~p"/instruments/#{instrument.id}")}
 
@@ -354,8 +367,12 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
     {:noreply,
      socket
      |> put_flash(:info, "Instrument removed from your vault.")
-     |> assign(:instruments, Vaults.list_instruments(scope))
+     |> assign_instruments()
      |> push_patch(to: ~p"/instruments")}
+  end
+
+  def handle_event("search", %{"q" => q}, socket) do
+    {:noreply, socket |> assign(:search, q) |> assign_instruments()}
   end
 
   def handle_event("validate_event", %{"event" => params}, socket) do
@@ -449,6 +466,13 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
   defp form_base(%{assigns: %{live_action: :edit, selected: selected}}), do: selected
   defp form_base(_socket), do: Vaults.new_guitar()
+
+  defp assign_instruments(socket) do
+    instruments =
+      Vaults.list_instruments(socket.assigns.current_scope, search: socket.assigns.search)
+
+    assign(socket, :instruments, instruments)
+  end
 
   defp new_form, do: to_form(Vaults.change_guitar(), as: "instrument")
 

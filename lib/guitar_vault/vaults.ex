@@ -30,20 +30,42 @@ defmodule GuitarVault.Vaults do
 
   ## Instruments
 
-  @doc "Lists the instruments in the caller's vault, newest first."
-  def list_instruments(%Scope{} = scope) do
+  @doc """
+  Lists the instruments in the caller's vault, newest first.
+
+  Pass `search: term` to filter by instrument name, brand or model.
+  """
+  def list_instruments(%Scope{} = scope, opts \\ []) do
     case get_vault(scope) do
       nil ->
         []
 
       vault ->
-        Vaultable
-        |> where([v], v.vault_id == ^vault.id)
-        |> order_by([v], desc: v.inserted_at)
+        from(v in Vaultable,
+          left_join: g in assoc(v, :guitar),
+          where: v.vault_id == ^vault.id,
+          order_by: [desc: v.inserted_at],
+          preload: [guitar: g]
+        )
+        |> filter_by_search(opts[:search])
         |> Repo.all()
-        |> Repo.preload(:guitar)
     end
   end
+
+  defp filter_by_search(query, term) when is_binary(term) do
+    case String.trim(term) do
+      "" ->
+        query
+
+      trimmed ->
+        like = "%#{trimmed}%"
+
+        from [v, g] in query,
+          where: like(v.name, ^like) or like(g.brand, ^like) or like(g.model, ^like)
+    end
+  end
+
+  defp filter_by_search(query, _), do: query
 
   @doc "Gets a single instrument from the caller's vault. Raises if not found."
   def get_instrument!(%Scope{} = scope, id) do

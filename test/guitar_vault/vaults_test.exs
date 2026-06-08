@@ -255,5 +255,25 @@ defmodule GuitarVault.VaultsTest do
       assert {:ok, _} = Vaults.delete_instrument(scope, mine)
       assert [] = Vaults.list_instruments(scope)
     end
+
+    test "search filters by name, brand or model", %{scope: scope} do
+      {:ok, _} =
+        Vaults.create_guitar(scope, %{
+          "name" => "Red Tele",
+          "guitar" => %{"brand" => "Fender", "model" => "Telecaster"}
+        })
+
+      {:ok, _} =
+        Vaults.create_guitar(scope, %{
+          "name" => "Blue One",
+          "guitar" => %{"brand" => "Gibson", "model" => "Les Paul"}
+        })
+
+      assert [%{name: "Red Tele"}] = Vaults.list_instruments(scope, search: "tele")
+      assert [%{name: "Blue One"}] = Vaults.list_instruments(scope, search: "gibson")
+      assert [%{name: "Blue One"}] = Vaults.list_instruments(scope, search: "paul")
+      assert length(Vaults.list_instruments(scope, search: "")) == 2
+      assert Vaults.list_instruments(scope, search: "zzz") == []
+    end
   end
 end
