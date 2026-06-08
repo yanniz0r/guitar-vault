@@ -18,7 +18,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
         <%!-- Master: overview (~1/5) --%>
         <aside class="w-1/5 min-w-44 shrink-0 space-y-3">
           <.link
-            patch={~p"/instruments"}
+            patch={~p"/instruments?#{q_params(@search)}"}
             class={["btn btn-sm w-full", @live_action == :index && "btn-primary"]}
           >
             + New
@@ -39,7 +39,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
           <nav class="flex flex-col gap-1">
             <.link
               :for={instrument <- @instruments}
-              patch={~p"/instruments/#{instrument.id}"}
+              patch={~p"/instruments/#{instrument.id}?#{q_params(@search)}"}
               class={[
                 "rounded-lg px-3 py-2 hover:bg-base-200",
                 @selected && @selected.id == instrument.id && "bg-base-200"
@@ -70,7 +70,10 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
               </.header>
 
               <.instrument_form form={@form} submit_label="Save changes">
-                <.link patch={~p"/instruments/#{@selected.id}"} class="btn btn-ghost">
+                <.link
+                  patch={~p"/instruments/#{@selected.id}?#{q_params(@search)}"}
+                  class="btn btn-ghost"
+                >
                   Cancel
                 </.link>
               </.instrument_form>
@@ -81,7 +84,10 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                   {@selected.guitar && String.capitalize(@selected.guitar.kind)}
                 </:subtitle>
                 <:actions>
-                  <.link patch={~p"/instruments/#{@selected.id}/edit"} class="btn btn-sm">
+                  <.link
+                    patch={~p"/instruments/#{@selected.id}/edit?#{q_params(@search)}"}
+                    class="btn btn-sm"
+                  >
                     Edit
                   </.link>
                   <.link
@@ -284,6 +290,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
     {:ok,
      socket
      |> assign(:search, "")
+     |> assign(:current_path, ~p"/instruments")
      |> assign_instruments()
      |> assign(:selected, nil)
      |> assign(:form, new_form())
@@ -296,7 +303,13 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
   end
 
   @impl true
-  def handle_params(params, _uri, socket) do
+  def handle_params(params, uri, socket) do
+    socket =
+      socket
+      |> assign(:search, params["q"] || "")
+      |> assign(:current_path, URI.parse(uri).path)
+      |> assign_instruments()
+
     {:noreply, apply_action(socket, socket.assigns.live_action, params)}
   end
 
@@ -352,7 +365,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
          |> put_flash(:info, flash_message(socket.assigns.live_action))
          |> assign_instruments()
          |> assign(:form, new_form())
-         |> push_patch(to: ~p"/instruments/#{instrument.id}")}
+         |> push_patch(to: ~p"/instruments/#{instrument.id}?#{q_params(socket.assigns.search)}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, as: "instrument"))}
@@ -368,11 +381,11 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
      socket
      |> put_flash(:info, "Instrument removed from your vault.")
      |> assign_instruments()
-     |> push_patch(to: ~p"/instruments")}
+     |> push_patch(to: ~p"/instruments?#{q_params(socket.assigns.search)}")}
   end
 
   def handle_event("search", %{"q" => q}, socket) do
-    {:noreply, socket |> assign(:search, q) |> assign_instruments()}
+    {:noreply, push_patch(socket, to: search_path(socket.assigns.current_path, q), replace: true)}
   end
 
   def handle_event("validate_event", %{"event" => params}, socket) do
@@ -473,6 +486,14 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
     assign(socket, :instruments, instruments)
   end
+
+  # Current path with the search term carried in the query string.
+  defp search_path(path, ""), do: path
+  defp search_path(path, q), do: "#{path}?#{URI.encode_query(q: q)}"
+
+  # Query params for verified-route links, omitted when there's no search.
+  defp q_params(""), do: []
+  defp q_params(q), do: [q: q]
 
   defp new_form, do: to_form(Vaults.change_guitar(), as: "instrument")
 
