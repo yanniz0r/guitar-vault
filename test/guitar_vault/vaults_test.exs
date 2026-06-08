@@ -70,6 +70,52 @@ defmodule GuitarVault.VaultsTest do
     end
   end
 
+  describe "history events" do
+    setup %{scope: scope} do
+      {:ok, instrument} = Vaults.create_guitar(scope, @valid_attrs)
+      %{instrument: instrument}
+    end
+
+    test "adds events and exposes them newest-first on the instrument", %{
+      scope: scope,
+      instrument: instrument
+    } do
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2018-01-01"})
+
+      assert {:ok, _} =
+               Vaults.add_event(scope, instrument, %{
+                 "kind" => "bought",
+                 "date" => "2020-05-02",
+                 "description" => "from a friend"
+               })
+
+      reloaded = Vaults.get_instrument!(scope, instrument.id)
+      assert [first, second] = reloaded.events
+      assert first.kind == "bought"
+      assert first.description == "from a friend"
+      assert second.kind == "built"
+    end
+
+    test "rejects unknown kinds and missing dates", %{scope: scope, instrument: instrument} do
+      assert {:error, changeset} =
+               Vaults.add_event(scope, instrument, %{"kind" => "lost", "date" => nil})
+
+      refute changeset.valid?
+    end
+
+    test "deletes an event scoped to the caller's vault", %{scope: scope, instrument: instrument} do
+      {:ok, event} =
+        Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2021-09-09"})
+
+      assert {:ok, _} = Vaults.delete_event(scope, event.id)
+      assert Vaults.get_instrument!(scope, instrument.id).events == []
+
+      other_scope = user_scope_fixture()
+      assert_raise Ecto.NoResultsError, fn -> Vaults.delete_event(other_scope, event.id) end
+    end
+  end
+
   describe "list_instruments/1 and delete_instrument/2" do
     test "lists only the caller's instruments and deletes them", %{scope: scope} do
       other_scope = user_scope_fixture()

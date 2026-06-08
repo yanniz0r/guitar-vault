@@ -2,6 +2,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
   use GuitarVaultWeb, :live_view
 
   alias GuitarVault.Vaults
+  alias GuitarVault.Vaults.Event
 
   @impl true
   def render(assigns) do
@@ -88,6 +89,59 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                 <:item title="Year">{@selected.guitar && @selected.guitar.year}</:item>
                 <:item title="Color">{@selected.guitar && @selected.guitar.color}</:item>
               </.list>
+
+              <div class="mt-8">
+                <.header>
+                  History
+                  <:subtitle>What happened to this instrument over time.</:subtitle>
+                </.header>
+
+                <ol class="my-4 space-y-2">
+                  <li
+                    :for={event <- @selected.events}
+                    class="flex items-baseline justify-between gap-4 rounded-lg border border-base-content/10 px-3 py-2"
+                  >
+                    <div>
+                      <span class="font-semibold">{String.capitalize(event.kind)}</span>
+                      <span class="text-sm opacity-60">
+                        · {Calendar.strftime(event.date, "%b %-d, %Y")}
+                      </span>
+                      <p :if={event.description} class="text-sm opacity-80">{event.description}</p>
+                    </div>
+                    <.link
+                      phx-click={JS.push("delete_event", value: %{id: event.id})}
+                      data-confirm="Delete this history entry?"
+                      class="text-sm opacity-60 hover:opacity-100"
+                    >
+                      Remove
+                    </.link>
+                  </li>
+                </ol>
+
+                <p :if={@selected.events == []} class="text-sm opacity-60">No history yet.</p>
+
+                <.form
+                  for={@event_form}
+                  id="event-form"
+                  phx-change="validate_event"
+                  phx-submit="save_event"
+                  class="mt-4"
+                >
+                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+                    <.input
+                      field={@event_form[:kind]}
+                      type="select"
+                      label="Event"
+                      options={[{"Built", "built"}, {"Bought", "bought"}, {"Sold", "sold"}]}
+                    />
+                    <.input field={@event_form[:date]} type="date" label="Date" />
+                    <.input field={@event_form[:description]} label="Description" />
+                  </div>
+                  <.button phx-disable-with="Adding..." class="btn btn-primary btn-sm mt-4">
+                    Add event
+                  </.button>
+                </.form>
+              </div>
             <% true -> %>
               <.header>
                 Add an instrument
@@ -140,7 +194,8 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
      socket
      |> assign(:instruments, Vaults.list_instruments(scope))
      |> assign(:selected, nil)
-     |> assign(:form, new_form())}
+     |> assign(:form, new_form())
+     |> assign(:event_form, new_event_form())}
   end
 
   @impl true
@@ -161,6 +216,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
     socket
     |> assign(:selected, instrument)
     |> assign(:page_title, instrument.name)
+    |> assign(:event_form, new_event_form())
   end
 
   defp apply_action(socket, :edit, %{"id" => id}) do
@@ -218,10 +274,43 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
      |> push_patch(to: ~p"/instruments")}
   end
 
+  def handle_event("validate_event", %{"event" => params}, socket) do
+    changeset = Vaults.change_event(%Event{}, params) |> Map.put(:action, :validate)
+    {:noreply, assign(socket, :event_form, to_form(changeset, as: "event"))}
+  end
+
+  def handle_event("save_event", %{"event" => params}, socket) do
+    scope = socket.assigns.current_scope
+
+    case Vaults.add_event(scope, socket.assigns.selected, params) do
+      {:ok, _event} ->
+        instrument = Vaults.get_instrument!(scope, socket.assigns.selected.id)
+
+        {:noreply,
+         socket
+         |> put_flash(:info, "History updated.")
+         |> assign(:selected, instrument)
+         |> assign(:event_form, new_event_form())}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :event_form, to_form(changeset, as: "event"))}
+    end
+  end
+
+  def handle_event("delete_event", %{"id" => id}, socket) do
+    scope = socket.assigns.current_scope
+    {:ok, _} = Vaults.delete_event(scope, id)
+    instrument = Vaults.get_instrument!(scope, socket.assigns.selected.id)
+
+    {:noreply, assign(socket, :selected, instrument)}
+  end
+
   defp form_base(%{assigns: %{live_action: :edit, selected: selected}}), do: selected
   defp form_base(_socket), do: Vaults.new_guitar()
 
   defp new_form, do: to_form(Vaults.change_guitar(), as: "instrument")
+
+  defp new_event_form, do: to_form(Vaults.change_event(), as: "event")
 
   defp flash_message(:edit), do: "Instrument updated."
   defp flash_message(_), do: "Instrument added to your vault."

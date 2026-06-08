@@ -10,7 +10,7 @@ defmodule GuitarVault.Vaults do
   import Ecto.Query, warn: false
   alias GuitarVault.Repo
   alias GuitarVault.Accounts.Scope
-  alias GuitarVault.Vaults.{Guitar, Vault, Vaultable}
+  alias GuitarVault.Vaults.{Event, Guitar, Vault, Vaultable}
 
   ## Vaults
 
@@ -51,7 +51,11 @@ defmodule GuitarVault.Vaults do
     Vaultable
     |> where([v], v.vault_id == ^vault.id and v.id == ^id)
     |> Repo.one!()
-    |> Repo.preload(:guitar)
+    |> Repo.preload([:guitar, events: events_query()])
+  end
+
+  defp events_query do
+    from e in Event, order_by: [desc: e.date, desc: e.inserted_at]
   end
 
   @doc "An empty guitar instrument, for building new forms."
@@ -96,5 +100,37 @@ defmodule GuitarVault.Vaults do
     vault = get_or_create_vault!(scope)
     true = instrument.vault_id == vault.id
     Repo.delete(instrument)
+  end
+
+  ## History events
+
+  @doc "Returns a changeset for tracking history-event form changes."
+  def change_event(%Event{} = event \\ %Event{}, attrs \\ %{}) do
+    Event.changeset(event, attrs)
+  end
+
+  @doc "Adds a history event to an instrument in the caller's vault."
+  def add_event(%Scope{} = scope, %Vaultable{} = instrument, attrs) do
+    vault = get_or_create_vault!(scope)
+    true = instrument.vault_id == vault.id
+
+    %Event{vaultable_id: instrument.id}
+    |> Event.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc "Deletes a history event belonging to the caller's vault."
+  def delete_event(%Scope{} = scope, id) do
+    vault = get_or_create_vault!(scope)
+
+    event =
+      from(e in Event,
+        join: v in Vaultable,
+        on: v.id == e.vaultable_id,
+        where: e.id == ^id and v.vault_id == ^vault.id
+      )
+      |> Repo.one!()
+
+    Repo.delete(event)
   end
 end
