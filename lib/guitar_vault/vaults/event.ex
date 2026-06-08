@@ -23,10 +23,20 @@ defmodule GuitarVault.Vaults.Event do
   # them unique.
   @unique_kinds ~w(built)
 
+  # Kinds that carry a price/counterparty (and require a price).
+  @money_kinds ~w(bought sold)
+
   schema "vaultable_events" do
     field :kind, :string
     field :date, :date
     field :description, :string
+
+    # Money is stored as integer minor units (cents) plus a currency. `:price`
+    # is the virtual major-unit amount edited in forms, converted on cast.
+    field :price_cents, :integer
+    field :currency, :string
+    field :counterparty, :string
+    field :price, :decimal, virtual: true
 
     belongs_to :vaultable, Vaultable
     has_many :images, Image
@@ -43,10 +53,32 @@ defmodule GuitarVault.Vaults.Event do
   @doc false
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:kind, :date, :description])
+    |> cast(attrs, [:kind, :date, :description, :price, :currency, :counterparty])
     |> validate_required([:kind, :date])
     |> validate_inclusion(:kind, @kinds)
     |> maybe_require_description()
+    |> maybe_require_price()
+    |> put_price_cents()
+  end
+
+  defp maybe_require_price(changeset) do
+    if get_field(changeset, :kind) in @money_kinds do
+      validate_required(changeset, [:price, :currency])
+    else
+      changeset
+    end
+  end
+
+  # Convert the virtual major-unit price into stored integer cents.
+  defp put_price_cents(changeset) do
+    case get_change(changeset, :price) do
+      nil -> changeset
+      price -> put_change(changeset, :price_cents, to_cents(price))
+    end
+  end
+
+  defp to_cents(%Decimal{} = price) do
+    price |> Decimal.mult(100) |> Decimal.round() |> Decimal.to_integer()
   end
 
   @doc """

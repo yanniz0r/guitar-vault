@@ -48,6 +48,7 @@ defmodule GuitarVault.Vaults do
           preload: [guitar: g]
         )
         |> filter_by_search(opts[:search])
+        |> filter_by_sold(opts[:show_sold])
         |> Repo.all()
     end
   end
@@ -66,6 +67,35 @@ defmodule GuitarVault.Vaults do
   end
 
   defp filter_by_search(query, _), do: query
+
+  # Returns only instruments currently considered "sold":
+  # they have a sold event with no subsequent bought event.
+  defp filter_by_sold(query, true) do
+    from v in query, where: v.id in subquery(sold_vaultable_ids())
+  end
+
+  # Default: hide sold instruments so only currently-owned gear is shown.
+  defp filter_by_sold(query, _) do
+    from v in query, where: v.id not in subquery(sold_vaultable_ids())
+  end
+
+  # Subquery: vaultable_ids for instruments that have a "sold" event
+  # with no later "bought" event (i.e. currently sold).
+  defp sold_vaultable_ids do
+    from e in Event,
+      as: :sold_event,
+      where: e.kind == "sold",
+      where:
+        not exists(
+          from e2 in Event,
+            where:
+              e2.vaultable_id == parent_as(:sold_event).vaultable_id and
+                e2.kind == "bought" and
+                e2.date > parent_as(:sold_event).date
+        ),
+      select: e.vaultable_id,
+      distinct: true
+  end
 
   @doc "Gets a single instrument from the caller's vault. Raises if not found."
   def get_instrument!(%Scope{} = scope, id) do

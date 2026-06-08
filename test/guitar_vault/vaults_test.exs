@@ -87,7 +87,9 @@ defmodule GuitarVault.VaultsTest do
                Vaults.add_event(scope, instrument, %{
                  "kind" => "bought",
                  "date" => "2020-05-02",
-                 "description" => "from a friend"
+                 "description" => "from a friend",
+                 "price" => "500",
+                 "currency" => "EUR"
                })
 
       reloaded = Vaults.get_instrument!(scope, instrument.id)
@@ -147,6 +149,39 @@ defmodule GuitarVault.VaultsTest do
 
       assert {:ok, _} =
                Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2023-03-03"})
+    end
+
+    test "stores a price as integer cents for purchases", %{scope: scope, instrument: instrument} do
+      assert {:ok, event} =
+               Vaults.add_event(scope, instrument, %{
+                 "kind" => "bought",
+                 "date" => "2020-05-02",
+                 "price" => "1299.99",
+                 "currency" => "EUR",
+                 "counterparty" => "Music Store"
+               })
+
+      assert event.price_cents == 129_999
+      assert event.currency == "EUR"
+      assert event.counterparty == "Music Store"
+    end
+
+    test "requires a price and currency for purchases/sales", %{
+      scope: scope,
+      instrument: instrument
+    } do
+      assert {:error, changeset} =
+               Vaults.add_event(scope, instrument, %{"kind" => "sold", "date" => "2023-01-01"})
+
+      assert "can't be blank" in errors_on(changeset).price
+      assert "can't be blank" in errors_on(changeset).currency
+    end
+
+    test "non-money events ignore price", %{scope: scope, instrument: instrument} do
+      assert {:ok, event} =
+               Vaults.add_event(scope, instrument, %{"kind" => "built", "date" => "2019-01-01"})
+
+      assert event.price_cents == nil
     end
 
     test "allows only one built event per instrument", %{scope: scope, instrument: instrument} do

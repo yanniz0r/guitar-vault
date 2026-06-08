@@ -18,7 +18,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
         <%!-- Master: overview (~1/5) --%>
         <aside class="w-1/5 min-w-44 shrink-0 space-y-3">
           <.link
-            patch={~p"/instruments?#{q_params(@search)}"}
+            patch={~p"/instruments?#{q_params(@search, @show_sold)}"}
             class={["btn btn-sm w-full", @live_action == :index && "btn-primary"]}
           >
             + New
@@ -36,10 +36,20 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
             />
           </form>
 
+          <label class="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-base-200">
+            <input
+              type="checkbox"
+              phx-click="toggle_sold"
+              checked={@show_sold}
+              class="h-4 w-4 rounded border-base-content/30 accent-primary"
+            />
+            Show sold gear
+          </label>
+
           <nav class="flex flex-col gap-1">
             <.link
               :for={instrument <- @instruments}
-              patch={~p"/instruments/#{instrument.id}?#{q_params(@search)}"}
+              patch={~p"/instruments/#{instrument.id}?#{q_params(@search, @show_sold)}"}
               class={[
                 "rounded-lg px-3 py-2 hover:bg-base-200",
                 @selected && @selected.id == instrument.id && "bg-base-200"
@@ -56,7 +66,11 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
           </nav>
 
           <p :if={@instruments == []} class="text-sm opacity-60">
-            {if @search == "", do: "No instruments yet.", else: "No matches."}
+            <%= cond do %>
+              <% @show_sold -> %>Sold gear shows up here.
+              <% @search != "" -> %>No matches.
+              <% true -> %>No instruments yet.
+            <% end %>
           </p>
         </aside>
 
@@ -71,7 +85,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
               <.instrument_form form={@form} submit_label="Save changes">
                 <.link
-                  patch={~p"/instruments/#{@selected.id}?#{q_params(@search)}"}
+                  patch={~p"/instruments/#{@selected.id}?#{q_params(@search, @show_sold)}"}
                   class="btn btn-ghost"
                 >
                   Cancel
@@ -85,7 +99,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                 </:subtitle>
                 <:actions>
                   <.link
-                    patch={~p"/instruments/#{@selected.id}/edit?#{q_params(@search)}"}
+                    patch={~p"/instruments/#{@selected.id}/edit?#{q_params(@search, @show_sold)}"}
                     class="btn btn-sm"
                   >
                     Edit
@@ -206,6 +220,10 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                         · {Calendar.strftime(event.date, "%b %-d, %Y")}
                       </span>
                       <p :if={event.description} class="text-sm opacity-80">{event.description}</p>
+                      <p :if={event.price_cents} class="text-sm opacity-80">
+                        {format_price(event.price_cents, event.currency)}
+                        <span :if={event.counterparty}>· {event.counterparty}</span>
+                      </p>
                     </div>
                     <.link
                       phx-click={JS.push("delete_event", value: %{id: event.id})}
@@ -235,6 +253,27 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                     />
                     <.input field={@event_form[:date]} type="date" label="Date" />
                     <.input field={@event_form[:description]} label="Description" />
+
+                    <.input
+                      :if={money_kind?(@event_form)}
+                      field={@event_form[:price]}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      label="Price"
+                    />
+                    <.input
+                      :if={money_kind?(@event_form)}
+                      field={@event_form[:currency]}
+                      type="select"
+                      label="Currency"
+                      options={~w(EUR USD GBP)}
+                    />
+                    <.input
+                      :if={money_kind?(@event_form)}
+                      field={@event_form[:counterparty]}
+                      label="Seller / buyer"
+                    />
                   </div>
                   <.button phx-disable-with="Adding..." class="btn btn-primary btn-sm mt-4">
                     Add event
@@ -290,6 +329,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
     {:ok,
      socket
      |> assign(:search, "")
+     |> assign(:show_sold, false)
      |> assign(:current_path, ~p"/instruments")
      |> assign_instruments()
      |> assign(:selected, nil)
@@ -307,6 +347,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
     socket =
       socket
       |> assign(:search, params["q"] || "")
+      |> assign(:show_sold, params["sold"] == "true")
       |> assign(:current_path, URI.parse(uri).path)
       |> assign_instruments()
 
@@ -365,7 +406,7 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
          |> put_flash(:info, flash_message(socket.assigns.live_action))
          |> assign_instruments()
          |> assign(:form, new_form())
-         |> push_patch(to: ~p"/instruments/#{instrument.id}?#{q_params(socket.assigns.search)}")}
+|> push_patch(to: ~p"/instruments/#{instrument.id}?#{q_params(socket.assigns.search, socket.assigns.show_sold)}")}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, as: "instrument"))}
@@ -381,11 +422,18 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
      socket
      |> put_flash(:info, "Instrument removed from your vault.")
      |> assign_instruments()
-     |> push_patch(to: ~p"/instruments?#{q_params(socket.assigns.search)}")}
+     |> push_patch(to: ~p"/instruments?#{q_params(socket.assigns.search, socket.assigns.show_sold)}")}
   end
 
   def handle_event("search", %{"q" => q}, socket) do
-    {:noreply, push_patch(socket, to: search_path(socket.assigns.current_path, q), replace: true)}
+    params = q_params(q, socket.assigns.show_sold)
+    {:noreply, push_patch(socket, to: ~p"/instruments?#{params}", replace: true)}
+  end
+
+  def handle_event("toggle_sold", _params, socket) do
+    new_show_sold = !socket.assigns.show_sold
+    params = q_params(socket.assigns.search, new_show_sold)
+    {:noreply, push_patch(socket, to: ~p"/instruments?#{params}", replace: true)}
   end
 
   def handle_event("validate_event", %{"event" => params}, socket) do
@@ -482,18 +530,29 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
 
   defp assign_instruments(socket) do
     instruments =
-      Vaults.list_instruments(socket.assigns.current_scope, search: socket.assigns.search)
+      Vaults.list_instruments(socket.assigns.current_scope,
+        search: socket.assigns.search,
+        show_sold: socket.assigns.show_sold
+      )
 
     assign(socket, :instruments, instruments)
   end
 
-  # Current path with the search term carried in the query string.
-  defp search_path(path, ""), do: path
-  defp search_path(path, q), do: "#{path}?#{URI.encode_query(q: q)}"
+  # Query params for verified-route links, omitting blank/false values.
+  defp q_params(search, show_sold) do
+    []
+    |> then(fn p -> if search != "", do: [{:q, search} | p], else: p end)
+    |> then(fn p -> if show_sold, do: [{:sold, "true"} | p], else: p end)
+  end
 
-  # Query params for verified-route links, omitted when there's no search.
-  defp q_params(""), do: []
-  defp q_params(q), do: [q: q]
+  # Whether the event form's current kind carries a price.
+  defp money_kind?(form), do: form[:kind].value in ~w(bought sold)
+
+  # Format integer cents as "<CUR> <major>.<minor>" without touching floats.
+  defp format_price(cents, currency) do
+    minor = rem(cents, 100) |> Integer.to_string() |> String.pad_leading(2, "0")
+    "#{currency} #{div(cents, 100)}.#{minor}"
+  end
 
   defp new_form, do: to_form(Vaults.change_guitar(), as: "instrument")
 
