@@ -212,26 +212,123 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                 <ol class="my-4 space-y-2">
                   <li
                     :for={event <- @selected.events}
-                    class="flex items-baseline justify-between gap-4 rounded-lg border border-base-content/10 px-3 py-2"
+                    class="rounded-lg border border-base-content/10 px-3 py-2"
                   >
-                    <div>
-                      <span class="font-semibold">{String.capitalize(event.kind)}</span>
-                      <span class="text-sm opacity-60">
-                        · {Calendar.strftime(event.date, "%b %-d, %Y")}
-                      </span>
-                      <p :if={event.description} class="text-sm opacity-80">{event.description}</p>
-                      <p :if={event.price_cents} class="text-sm opacity-80">
-                        {format_price(event.price_cents, event.currency)}
-                        <span :if={event.counterparty}>· {event.counterparty}</span>
-                      </p>
+                    <%!-- Header row: event info + actions --%>
+                    <div class="flex items-baseline justify-between gap-4">
+                      <div>
+                        <span class="font-semibold">{String.capitalize(event.kind)}</span>
+                        <span class="text-sm opacity-60">
+                          · {Calendar.strftime(event.date, "%b %-d, %Y")}
+                        </span>
+                        <p :if={event.description} class="text-sm opacity-80">
+                          {event.description}
+                        </p>
+                        <p :if={event.price_cents} class="text-sm opacity-80">
+                          {format_price(event.price_cents, event.currency)}
+                          <span :if={event.counterparty}>· {event.counterparty}</span>
+                        </p>
+                      </div>
+                      <div class="flex shrink-0 items-center gap-3">
+                        <button
+                          type="button"
+                          phx-click="set_uploading_event"
+                          phx-value-id={event.id}
+                          class="text-sm opacity-60 hover:opacity-100"
+                        >
+                          {if @uploading_event_id == event.id, do: "Cancel", else: "+ Photos"}
+                        </button>
+                        <.link
+                          phx-click={JS.push("delete_event", value: %{id: event.id})}
+                          data-confirm="Delete this history entry?"
+                          class="text-sm opacity-60 hover:opacity-100"
+                        >
+                          Remove
+                        </.link>
+                      </div>
                     </div>
-                    <.link
-                      phx-click={JS.push("delete_event", value: %{id: event.id})}
-                      data-confirm="Delete this history entry?"
-                      class="text-sm opacity-60 hover:opacity-100"
-                    >
-                      Remove
-                    </.link>
+
+                    <%!-- Existing event images --%>
+                    <div :if={event.images != []} class="mt-2 flex flex-wrap gap-2">
+                      <figure
+                        :for={image <- event.images}
+                        class="group relative space-y-1 rounded border border-base-content/10 p-1"
+                      >
+                        <img
+                          src={Uploads.url(image.path)}
+                          alt={image.description}
+                          class="size-20 rounded object-cover"
+                        />
+                        <form phx-submit="update_image" class="flex gap-1">
+                          <input type="hidden" name="image_id" value={image.id} />
+                          <input
+                            type="text"
+                            name="description"
+                            value={image.description}
+                            placeholder="Caption"
+                            class="input input-xs input-bordered w-28"
+                          />
+                          <.button type="submit" class="btn btn-xs">OK</.button>
+                        </form>
+                        <.link
+                          phx-click={JS.push("delete_image", value: %{id: image.id})}
+                          data-confirm="Delete this photo?"
+                          class="block text-xs opacity-60 hover:opacity-100"
+                        >
+                          Delete
+                        </.link>
+                      </figure>
+                    </div>
+
+                    <%!-- Upload form (shown when this event is the active upload target) --%>
+                    <div :if={@uploading_event_id == event.id} class="mt-3">
+                      <form
+                        id={"event-upload-form-#{event.id}"}
+                        phx-submit="save_event_images"
+                        phx-change="validate_event_upload"
+                        class="space-y-2"
+                      >
+                        <.live_file_input upload={@uploads.event_images} />
+
+                        <div :if={@uploads.event_images.entries != []} class="flex flex-wrap gap-2">
+                          <div
+                            :for={entry <- @uploads.event_images.entries}
+                            class="space-y-1"
+                          >
+                            <.live_img_preview entry={entry} class="size-16 rounded object-cover" />
+                            <button
+                              type="button"
+                              phx-click="cancel_event_upload"
+                              phx-value-ref={entry.ref}
+                              class="block text-xs opacity-60 hover:opacity-100"
+                            >
+                              Cancel
+                            </button>
+                            <p
+                              :for={err <- upload_errors(@uploads.event_images, entry)}
+                              class="text-xs text-error"
+                            >
+                              {upload_error_to_string(err)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p
+                          :for={err <- upload_errors(@uploads.event_images)}
+                          class="text-xs text-error"
+                        >
+                          {upload_error_to_string(err)}
+                        </p>
+
+                        <.button
+                          type="submit"
+                          phx-disable-with="Uploading..."
+                          class="btn btn-primary btn-xs"
+                        >
+                          Upload photos
+                        </.button>
+                      </form>
+                    </div>
                   </li>
                 </ol>
 
@@ -333,9 +430,15 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
      |> assign(:current_path, ~p"/instruments")
      |> assign_instruments()
      |> assign(:selected, nil)
+     |> assign(:uploading_event_id, nil)
      |> assign(:form, new_form())
      |> assign(:event_form, new_event_form())
      |> allow_upload(:images,
+       accept: ~w(.jpg .jpeg .png .webp),
+       max_entries: 8,
+       max_file_size: 10_000_000
+     )
+     |> allow_upload(:event_images,
        accept: ~w(.jpg .jpeg .png .webp),
        max_entries: 8,
        max_file_size: 10_000_000
@@ -471,6 +574,48 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
     instrument = Vaults.get_instrument!(scope, socket.assigns.selected.id)
 
     {:noreply, assign(socket, :selected, instrument)}
+  end
+
+  def handle_event("set_uploading_event", %{"id" => id}, socket) do
+    parsed = String.to_integer(id)
+    new_id = if socket.assigns.uploading_event_id == parsed, do: nil, else: parsed
+    {:noreply, assign(socket, :uploading_event_id, new_id)}
+  end
+
+  def handle_event("validate_event_upload", _params, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("cancel_event_upload", %{"ref" => ref}, socket) do
+    {:noreply, cancel_upload(socket, :event_images, ref)}
+  end
+
+  def handle_event("save_event_images", _params, socket) do
+    scope = socket.assigns.current_scope
+    event_id = socket.assigns.uploading_event_id
+    event = Enum.find(socket.assigns.selected.events, &(&1.id == event_id))
+
+    uploaded =
+      consume_uploaded_entries(socket, :event_images, fn %{path: path}, entry ->
+        filename = Uploads.store(path, entry.client_name)
+        {:ok, %{path: filename, content_type: entry.client_type}}
+      end)
+
+    for attrs <- uploaded do
+      {:ok, _image} = Vaults.add_image(scope, event, attrs)
+    end
+
+    socket =
+      if uploaded == [] do
+        socket
+      else
+        socket
+        |> put_flash(:info, "#{length(uploaded)} photo(s) added.")
+        |> assign(:selected, Vaults.get_instrument!(scope, socket.assigns.selected.id))
+        |> assign(:uploading_event_id, nil)
+      end
+
+    {:noreply, socket}
   end
 
   def handle_event("validate_upload", _params, socket) do
