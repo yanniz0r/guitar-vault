@@ -33,14 +33,16 @@ RUN mkdir config
 COPY config/config.exs config/${MIX_ENV}.exs config/
 RUN mix deps.compile
 
-# Build digested front-end assets
+# Copy source – compile Elixir first so phoenix-colocated hooks are generated
+# into _build/prod/phoenix-colocated/ before esbuild runs.
 COPY priv priv
 COPY lib lib
 COPY assets assets
-RUN mix assets.deploy
-
-# Compile the Elixir application
 RUN mix compile
+
+# Build digested front-end assets (esbuild resolves phoenix-colocated/guitar_vault
+# from _build/prod/phoenix-colocated/, which now exists after mix compile above)
+RUN mix assets.deploy
 
 # Runtime config is intentionally copied after compile so it never
 # influences compile-time macros (e.g. Application.compile_env)
