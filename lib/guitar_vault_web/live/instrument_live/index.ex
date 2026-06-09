@@ -8,55 +8,68 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} max_width="max-w-6xl">
-      <.header>
-        Your instruments
-        <:subtitle>Everything stored in your vault.</:subtitle>
-      </.header>
+    <Layouts.app flash={@flash} current_scope={@current_scope} max_width="max-w-7xl">
+      <%!-- Masthead --%>
+      <div class="mb-10 border-b-2 border-base-content/15 pb-6">
+        <p class="text-[10px] font-black uppercase tracking-[0.4em] text-primary">
+          Your Collection
+        </p>
+        <h1 class="mt-1 text-5xl font-black leading-none tracking-tight">The Vault</h1>
+      </div>
 
-      <div class="flex gap-6">
-        <%!-- Master: overview (~1/5) --%>
-        <aside class="w-1/5 min-w-44 shrink-0 space-y-3">
+      <div class="flex gap-10">
+        <%!-- ═══ Sidebar ═══ --%>
+        <aside class="w-72 shrink-0 space-y-5">
           <.link
             patch={~p"/instruments?#{q_params(@search, @show_sold)}"}
-            class={["btn btn-sm w-full", @live_action == :index && "btn-primary"]}
+            class={[
+              "block w-full border-2 border-primary py-3 text-center text-xs font-black uppercase tracking-[0.25em] transition-colors hover:bg-primary hover:text-primary-content",
+              @live_action == :index && "bg-primary text-primary-content"
+            ]}
           >
-            + New
+            ＋ New Instrument
           </.link>
 
           <form phx-change="search" phx-submit="search">
-            <input
-              type="text"
-              name="q"
-              value={@search}
-              placeholder="Search…"
-              phx-debounce="200"
-              autocomplete="off"
-              class="input input-sm input-bordered w-full"
-            />
+            <div class="relative">
+              <.icon
+                name="hero-magnifying-glass"
+                class="absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 opacity-40"
+              />
+              <input
+                type="text"
+                name="q"
+                value={@search}
+                placeholder="Search…"
+                phx-debounce="200"
+                autocomplete="off"
+                class="w-full border-0 border-b-2 border-base-content/20 bg-transparent pb-2 pl-6 text-sm placeholder:opacity-40 focus:border-primary focus:outline-none"
+              />
+            </div>
           </form>
 
-          <label class="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-base-200">
+          <label class="flex cursor-pointer items-center gap-2 text-sm opacity-50 transition-opacity hover:opacity-100">
             <input
               type="checkbox"
               phx-click="toggle_sold"
               checked={@show_sold}
-              class="h-4 w-4 rounded border-base-content/30 accent-primary"
+              class="h-4 w-4 accent-primary"
             />
             Show sold gear
           </label>
 
-          <nav class="flex flex-col gap-1">
+          <nav class="border-t-2 border-base-content/15">
             <.link
               :for={instrument <- @instruments}
               patch={~p"/instruments/#{instrument.id}?#{q_params(@search, @show_sold)}"}
               class={[
-                "rounded-lg px-3 py-2 hover:bg-base-200",
-                @selected && @selected.id == instrument.id && "bg-base-200"
+                "block border-b border-base-content/10 py-4 pl-0 pr-2 transition-all duration-150 hover:pl-3",
+                @selected && @selected.id == instrument.id &&
+                  "border-l-4 border-l-primary bg-primary/5 pl-3"
               ]}
             >
-              <div class="truncate text-sm font-medium">{instrument.name}</div>
-              <div class="truncate text-xs opacity-60">
+              <div class="truncate font-bold leading-snug">{instrument.name}</div>
+              <div class="mt-0.5 truncate text-xs opacity-40">
                 {instrument.guitar && String.capitalize(instrument.guitar.kind)}
                 <span :if={instrument.guitar && instrument.guitar.brand}>
                   · {instrument.guitar.brand}
@@ -65,84 +78,126 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
             </.link>
           </nav>
 
-          <p :if={@instruments == []} class="text-sm opacity-60">
+          <p :if={@instruments == []} class="pt-2 text-sm italic opacity-40">
             <%= cond do %>
-              <% @show_sold -> %>Sold gear shows up here.
-              <% @search != "" -> %>No matches.
-              <% true -> %>No instruments yet.
+              <% @show_sold -> %>No sold gear recorded.
+              <% @search != "" -> %>Nothing matches.
+              <% true -> %>Your vault is empty.
             <% end %>
           </p>
         </aside>
 
-        <%!-- Detail (~4/5) --%>
-        <section class="w-4/5">
+        <%!-- ═══ Detail panel ═══ --%>
+        <section class="min-w-0 flex-1">
           <%= cond do %>
+            <%!-- ── Edit form ── --%>
             <% @live_action == :edit -> %>
-              <.header>
-                Edit {@selected.name}
-                <:subtitle>Update the details of this instrument.</:subtitle>
-              </.header>
+              <div class="mb-6 border-b-2 border-base-content/15 pb-4">
+                <p class="text-[10px] font-black uppercase tracking-[0.4em] text-primary opacity-70">
+                  Editing
+                </p>
+                <h2 class="mt-1 text-3xl font-black tracking-tight">{@selected.name}</h2>
+              </div>
 
               <.instrument_form form={@form} submit_label="Save changes">
                 <.link
                   patch={~p"/instruments/#{@selected.id}?#{q_params(@search, @show_sold)}"}
-                  class="btn btn-ghost"
+                  class="btn btn-ghost rounded-none font-bold uppercase tracking-wider"
                 >
                   Cancel
                 </.link>
               </.instrument_form>
+
+            <%!-- ── Instrument detail ── --%>
             <% @selected -> %>
-              <.header>
-                {@selected.name}
-                <:subtitle>
-                  {@selected.guitar && String.capitalize(@selected.guitar.kind)}
-                </:subtitle>
-                <:actions>
-                  <.link
-                    patch={~p"/instruments/#{@selected.id}/edit?#{q_params(@search, @show_sold)}"}
-                    class="btn btn-sm"
-                  >
-                    Edit
-                  </.link>
-                  <.link
-                    phx-click={JS.push("delete", value: %{id: @selected.id})}
-                    data-confirm="Delete this instrument?"
-                    class="btn btn-sm"
-                  >
-                    Delete
-                  </.link>
-                </:actions>
-              </.header>
+              <%!-- Hero header --%>
+              <div class="mb-8 border-b-2 border-base-content/15 pb-6">
+                <div class="flex items-start justify-between gap-6">
+                  <div class="min-w-0">
+                    <p class="text-[10px] font-black uppercase tracking-[0.4em] text-primary opacity-70">
+                      {@selected.guitar && String.capitalize(@selected.guitar.kind)}
+                    </p>
+                    <h2 class="mt-1 text-5xl font-black leading-tight tracking-tight">
+                      {@selected.name}
+                    </h2>
+                    <p class="mt-2 text-lg font-semibold opacity-50">
+                      <span :if={@selected.guitar && @selected.guitar.brand}>
+                        {@selected.guitar.brand}
+                      </span>
+                      <span :if={@selected.guitar && @selected.guitar.model}>
+                        · {@selected.guitar.model}
+                      </span>
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 gap-2 pt-1">
+                    <.link
+                      patch={~p"/instruments/#{@selected.id}/edit?#{q_params(@search, @show_sold)}"}
+                      class="btn btn-sm rounded-none border-2 font-bold uppercase tracking-wider"
+                    >
+                      Edit
+                    </.link>
+                    <.link
+                      phx-click={JS.push("delete", value: %{id: @selected.id})}
+                      data-confirm="Delete this instrument?"
+                      class="btn btn-sm btn-error rounded-none font-bold uppercase tracking-wider"
+                    >
+                      Delete
+                    </.link>
+                  </div>
+                </div>
+              </div>
 
-              <.list>
-                <:item title="Name">{@selected.name}</:item>
-                <:item title="Type">
-                  {@selected.guitar && String.capitalize(@selected.guitar.kind)}
-                </:item>
-                <:item title="Brand">{@selected.guitar && @selected.guitar.brand}</:item>
-                <:item title="Model">{@selected.guitar && @selected.guitar.model}</:item>
-                <:item title="Year">{@selected.guitar && @selected.guitar.year}</:item>
-                <:item title="Color">{@selected.guitar && @selected.guitar.color}</:item>
-              </.list>
+              <%!-- Specs strip --%>
+              <div class="mb-10 grid grid-cols-2 gap-px border border-base-content/15 bg-base-content/10 sm:grid-cols-4">
+                <div class="bg-base-100 px-4 py-4">
+                  <p class="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Year</p>
+                  <p class="mt-1 text-2xl font-black">
+                    {if @selected.guitar && @selected.guitar.year,
+                      do: @selected.guitar.year,
+                      else: "—"}
+                  </p>
+                </div>
+                <div class="bg-base-100 px-4 py-4">
+                  <p class="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Brand</p>
+                  <p class="mt-1 text-xl font-bold leading-snug">
+                    {if @selected.guitar && @selected.guitar.brand,
+                      do: @selected.guitar.brand,
+                      else: "—"}
+                  </p>
+                </div>
+                <div class="bg-base-100 px-4 py-4">
+                  <p class="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Model</p>
+                  <p class="mt-1 text-xl font-bold leading-snug">
+                    {if @selected.guitar && @selected.guitar.model,
+                      do: @selected.guitar.model,
+                      else: "—"}
+                  </p>
+                </div>
+                <div class="bg-base-100 px-4 py-4">
+                  <p class="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">Color</p>
+                  <p class="mt-1 text-xl font-bold leading-snug">
+                    {if @selected.guitar && @selected.guitar.color,
+                      do: @selected.guitar.color,
+                      else: "—"}
+                  </p>
+                </div>
+              </div>
 
-              <div class="mt-8">
-                <.header>
-                  Images
-                  <:subtitle>Photos of this instrument.</:subtitle>
-                </.header>
+              <%!-- ─── Photos ─── --%>
+              <div class="mb-12">
+                <h3 class="mb-5 text-[10px] font-black uppercase tracking-[0.4em] opacity-40">
+                  Photos
+                </h3>
 
                 <div
                   :if={@selected.images != []}
-                  class="my-4 grid grid-cols-2 gap-4 sm:grid-cols-3"
+                  class="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-3"
                 >
-                  <figure
-                    :for={image <- @selected.images}
-                    class="space-y-2 rounded-lg border border-base-content/10 p-2"
-                  >
+                  <figure :for={image <- @selected.images} class="space-y-2">
                     <img
                       src={Uploads.url(image.path)}
                       alt={image.description}
-                      class="aspect-square w-full rounded object-cover"
+                      class="aspect-square w-full object-cover"
                     />
                     <form phx-submit="update_image" class="flex gap-2">
                       <input type="hidden" name="image_id" value={image.id} />
@@ -150,39 +205,43 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                         type="text"
                         name="description"
                         value={image.description}
-                        placeholder="Add a description"
-                        class="input input-sm input-bordered w-full"
+                        placeholder="Add a caption"
+                        class="input input-sm input-bordered w-full rounded-none"
                       />
-                      <.button type="submit" class="btn btn-sm">Save</.button>
+                      <.button type="submit" class="btn btn-sm rounded-none font-bold uppercase tracking-wider">
+                        Save
+                      </.button>
                     </form>
                     <.link
                       phx-click={JS.push("delete_image", value: %{id: image.id})}
-                      data-confirm="Delete this image?"
-                      class="text-sm opacity-60 hover:opacity-100"
+                      data-confirm="Delete this photo?"
+                      class="text-xs opacity-40 transition-opacity hover:text-error hover:opacity-100"
                     >
-                      Delete
+                      Delete photo
                     </.link>
                   </figure>
                 </div>
 
-                <p :if={@selected.images == []} class="text-sm opacity-60">No images yet.</p>
+                <p :if={@selected.images == []} class="mb-4 text-sm italic opacity-40">
+                  No photos yet.
+                </p>
 
                 <form
                   id="upload-form"
                   phx-submit="save_images"
                   phx-change="validate_upload"
-                  class="mt-4 space-y-3"
+                  class="space-y-3"
                 >
                   <.live_file_input upload={@uploads.images} />
 
                   <div :if={@uploads.images.entries != []} class="flex flex-wrap gap-3">
                     <div :for={entry <- @uploads.images.entries} class="space-y-1">
-                      <.live_img_preview entry={entry} class="size-20 rounded object-cover" />
+                      <.live_img_preview entry={entry} class="size-24 object-cover" />
                       <button
                         type="button"
                         phx-click="cancel_upload"
                         phx-value-ref={entry.ref}
-                        class="block text-xs opacity-60 hover:opacity-100"
+                        class="block text-xs opacity-40 hover:opacity-100"
                       >
                         Cancel
                       </button>
@@ -199,191 +258,221 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
                     {upload_error_to_string(err)}
                   </p>
 
-                  <.button type="submit" class="btn btn-primary btn-sm">Upload images</.button>
+                  <.button type="submit" class="btn btn-sm btn-primary rounded-none font-bold uppercase tracking-wider">
+                    Upload photos
+                  </.button>
                 </form>
               </div>
 
-              <div class="mt-8">
-                <.header>
+              <%!-- ─── History ─── --%>
+              <div>
+                <h3 class="mb-5 text-[10px] font-black uppercase tracking-[0.4em] opacity-40">
                   History
-                  <:subtitle>What happened to this instrument over time.</:subtitle>
-                </.header>
+                </h3>
 
-                <ol class="my-4 space-y-2">
-                  <li
-                    :for={event <- @selected.events}
-                    class="rounded-lg border border-base-content/10 px-3 py-2"
-                  >
-                    <%!-- Header row: event info + actions --%>
-                    <div class="flex items-baseline justify-between gap-4">
-                      <div>
-                        <span class="font-semibold">{String.capitalize(event.kind)}</span>
-                        <span class="text-sm opacity-60">
-                          · {Calendar.strftime(event.date, "%b %-d, %Y")}
-                        </span>
-                        <p :if={event.description} class="text-sm opacity-80">
-                          {event.description}
-                        </p>
-                        <p :if={event.price_cents} class="text-sm opacity-80">
-                          {format_price(event.price_cents, event.currency)}
-                          <span :if={event.counterparty}>· {event.counterparty}</span>
-                        </p>
-                      </div>
-                      <div class="flex shrink-0 items-center gap-3">
-                        <button
-                          type="button"
-                          phx-click="set_uploading_event"
-                          phx-value-id={event.id}
-                          class="text-sm opacity-60 hover:opacity-100"
-                        >
-                          {if @uploading_event_id == event.id, do: "Cancel", else: "+ Photos"}
-                        </button>
-                        <.link
-                          phx-click={JS.push("delete_event", value: %{id: event.id})}
-                          data-confirm="Delete this history entry?"
-                          class="text-sm opacity-60 hover:opacity-100"
-                        >
-                          Remove
-                        </.link>
-                      </div>
-                    </div>
+                <ol class="relative ml-3 space-y-4 border-l-2 border-base-content/15">
+                  <li :for={event <- @selected.events} class="relative ml-6">
+                    <%!-- Timeline dot --%>
+                    <span class="absolute -left-[33px] top-3 flex h-5 w-5 items-center justify-center rounded-full border-2 border-primary bg-base-100 ring-4 ring-base-100">
+                      <span class="h-2 w-2 rounded-full bg-primary"></span>
+                    </span>
 
-                    <%!-- Existing event images --%>
-                    <div :if={event.images != []} class="mt-2 flex flex-wrap gap-2">
-                      <figure
-                        :for={image <- event.images}
-                        class="group relative space-y-1 rounded border border-base-content/10 p-1"
-                      >
-                        <img
-                          src={Uploads.url(image.path)}
-                          alt={image.description}
-                          class="size-20 rounded object-cover"
-                        />
-                        <form phx-submit="update_image" class="flex gap-1">
-                          <input type="hidden" name="image_id" value={image.id} />
-                          <input
-                            type="text"
-                            name="description"
-                            value={image.description}
-                            placeholder="Caption"
-                            class="input input-xs input-bordered w-28"
-                          />
-                          <.button type="submit" class="btn btn-xs">OK</.button>
-                        </form>
-                        <.link
-                          phx-click={JS.push("delete_image", value: %{id: image.id})}
-                          data-confirm="Delete this photo?"
-                          class="block text-xs opacity-60 hover:opacity-100"
-                        >
-                          Delete
-                        </.link>
-                      </figure>
-                    </div>
-
-                    <%!-- Upload form (shown when this event is the active upload target) --%>
-                    <div :if={@uploading_event_id == event.id} class="mt-3">
-                      <form
-                        id={"event-upload-form-#{event.id}"}
-                        phx-submit="save_event_images"
-                        phx-change="validate_event_upload"
-                        class="space-y-2"
-                      >
-                        <.live_file_input upload={@uploads.event_images} />
-
-                        <div :if={@uploads.event_images.entries != []} class="flex flex-wrap gap-2">
-                          <div
-                            :for={entry <- @uploads.event_images.entries}
-                            class="space-y-1"
-                          >
-                            <.live_img_preview entry={entry} class="size-16 rounded object-cover" />
-                            <button
-                              type="button"
-                              phx-click="cancel_event_upload"
-                              phx-value-ref={entry.ref}
-                              class="block text-xs opacity-60 hover:opacity-100"
-                            >
-                              Cancel
-                            </button>
-                            <p
-                              :for={err <- upload_errors(@uploads.event_images, entry)}
-                              class="text-xs text-error"
-                            >
-                              {upload_error_to_string(err)}
-                            </p>
-                          </div>
+                    <div class="border border-base-content/10 bg-base-200/40 px-4 py-3">
+                      <div class="flex items-start justify-between gap-4">
+                        <div>
+                          <span class="text-[10px] font-black uppercase tracking-[0.3em] text-primary">
+                            {String.capitalize(event.kind)}
+                          </span>
+                          <span class="ml-2 text-sm opacity-50">
+                            {Calendar.strftime(event.date, "%b %-d, %Y")}
+                          </span>
+                          <p :if={event.description} class="mt-1 text-sm opacity-80">
+                            {event.description}
+                          </p>
+                          <p :if={event.price_cents} class="mt-1 text-sm font-bold">
+                            {format_price(event.price_cents, event.currency)}
+                            <span :if={event.counterparty} class="font-normal opacity-60">
+                              · {event.counterparty}
+                            </span>
+                          </p>
                         </div>
+                        <div class="flex shrink-0 items-center gap-4">
+                          <button
+                            type="button"
+                            phx-click="set_uploading_event"
+                            phx-value-id={event.id}
+                            class="text-xs opacity-40 transition-opacity hover:text-primary hover:opacity-100"
+                          >
+                            {if @uploading_event_id == event.id, do: "Cancel", else: "+ Photos"}
+                          </button>
+                          <.link
+                            phx-click={JS.push("delete_event", value: %{id: event.id})}
+                            data-confirm="Delete this history entry?"
+                            class="text-xs opacity-40 transition-opacity hover:text-error hover:opacity-100"
+                          >
+                            Remove
+                          </.link>
+                        </div>
+                      </div>
 
-                        <p
-                          :for={err <- upload_errors(@uploads.event_images)}
-                          class="text-xs text-error"
-                        >
-                          {upload_error_to_string(err)}
-                        </p>
+                      <%!-- Event images --%>
+                      <div :if={event.images != []} class="mt-3 flex flex-wrap gap-2">
+                        <figure :for={image <- event.images} class="space-y-1">
+                          <img
+                            src={Uploads.url(image.path)}
+                            alt={image.description}
+                            class="size-24 object-cover"
+                          />
+                          <form phx-submit="update_image" class="flex gap-1">
+                            <input type="hidden" name="image_id" value={image.id} />
+                            <input
+                              type="text"
+                              name="description"
+                              value={image.description}
+                              placeholder="Caption"
+                              class="input input-xs input-bordered w-24 rounded-none"
+                            />
+                            <.button type="submit" class="btn btn-xs rounded-none">OK</.button>
+                          </form>
+                          <.link
+                            phx-click={JS.push("delete_image", value: %{id: image.id})}
+                            data-confirm="Delete this photo?"
+                            class="block text-xs opacity-40 hover:text-error hover:opacity-100"
+                          >
+                            Delete
+                          </.link>
+                        </figure>
+                      </div>
 
-                        <.button
-                          type="submit"
-                          phx-disable-with="Uploading..."
-                          class="btn btn-primary btn-xs"
+                      <%!-- Event upload form --%>
+                      <div
+                        :if={@uploading_event_id == event.id}
+                        class="mt-3 border-t border-base-content/10 pt-3"
+                      >
+                        <form
+                          id={"event-upload-form-#{event.id}"}
+                          phx-submit="save_event_images"
+                          phx-change="validate_event_upload"
+                          class="space-y-2"
                         >
-                          Upload photos
-                        </.button>
-                      </form>
+                          <.live_file_input upload={@uploads.event_images} />
+
+                          <div
+                            :if={@uploads.event_images.entries != []}
+                            class="flex flex-wrap gap-2"
+                          >
+                            <div
+                              :for={entry <- @uploads.event_images.entries}
+                              class="space-y-1"
+                            >
+                              <.live_img_preview entry={entry} class="size-16 object-cover" />
+                              <button
+                                type="button"
+                                phx-click="cancel_event_upload"
+                                phx-value-ref={entry.ref}
+                                class="block text-xs opacity-40 hover:opacity-100"
+                              >
+                                Cancel
+                              </button>
+                              <p
+                                :for={err <- upload_errors(@uploads.event_images, entry)}
+                                class="text-xs text-error"
+                              >
+                                {upload_error_to_string(err)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <p
+                            :for={err <- upload_errors(@uploads.event_images)}
+                            class="text-xs text-error"
+                          >
+                            {upload_error_to_string(err)}
+                          </p>
+
+                          <.button
+                            type="submit"
+                            phx-disable-with="Uploading..."
+                            class="btn btn-xs btn-primary rounded-none font-bold uppercase tracking-wider"
+                          >
+                            Upload photos
+                          </.button>
+                        </form>
+                      </div>
                     </div>
                   </li>
                 </ol>
 
-                <p :if={@selected.events == []} class="text-sm opacity-60">No history yet.</p>
+                <p :if={@selected.events == []} class="mb-4 text-sm italic opacity-40">
+                  No history recorded yet.
+                </p>
 
-                <.form
-                  for={@event_form}
-                  id="event-form"
-                  phx-change="validate_event"
-                  phx-submit="save_event"
-                  class="mt-4"
-                >
-                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
-                    <.input
-                      field={@event_form[:kind]}
-                      type="select"
-                      label="Event"
-                      options={Enum.map(Event.kinds(), &{String.capitalize(&1), &1})}
-                    />
-                    <.input field={@event_form[:date]} type="date" label="Date" />
-                    <.input field={@event_form[:description]} label="Description" />
+                <%!-- Add event form --%>
+                <div class="mt-8 border-t-2 border-base-content/10 pt-6">
+                  <p class="mb-4 text-[10px] font-black uppercase tracking-[0.4em] opacity-40">
+                    Add to history
+                  </p>
+                  <.form
+                    for={@event_form}
+                    id="event-form"
+                    phx-change="validate_event"
+                    phx-submit="save_event"
+                  >
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+                      <.input
+                        field={@event_form[:kind]}
+                        type="select"
+                        label="Event"
+                        options={Enum.map(Event.kinds(), &{String.capitalize(&1), &1})}
+                      />
+                      <.input field={@event_form[:date]} type="date" label="Date" />
+                      <.input field={@event_form[:description]} label="Description" />
 
-                    <.input
-                      :if={money_kind?(@event_form)}
-                      field={@event_form[:price]}
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      label="Price"
-                    />
-                    <.input
-                      :if={money_kind?(@event_form)}
-                      field={@event_form[:currency]}
-                      type="select"
-                      label="Currency"
-                      options={~w(EUR USD GBP)}
-                    />
-                    <.input
-                      :if={money_kind?(@event_form)}
-                      field={@event_form[:counterparty]}
-                      label="Seller / buyer"
-                    />
-                  </div>
-                  <.button phx-disable-with="Adding..." class="btn btn-primary btn-sm mt-4">
-                    Add event
-                  </.button>
-                </.form>
+                      <.input
+                        :if={money_kind?(@event_form)}
+                        field={@event_form[:price]}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        label="Price"
+                      />
+                      <.input
+                        :if={money_kind?(@event_form)}
+                        field={@event_form[:currency]}
+                        type="select"
+                        label="Currency"
+                        options={~w(EUR USD GBP)}
+                      />
+                      <.input
+                        :if={money_kind?(@event_form)}
+                        field={@event_form[:counterparty]}
+                        label="Seller / buyer"
+                      />
+                    </div>
+                    <.button
+                      phx-disable-with="Adding..."
+                      class="btn btn-primary mt-4 rounded-none font-bold uppercase tracking-wider"
+                    >
+                      Add event
+                    </.button>
+                  </.form>
+                </div>
               </div>
-            <% true -> %>
-              <.header>
-                Add an instrument
-                <:subtitle>Add a guitar or bass to your vault.</:subtitle>
-              </.header>
 
-              <.instrument_form form={@form} submit_label="Add instrument" />
+            <%!-- ── Add new instrument ── --%>
+            <% true -> %>
+              <div class="flex h-full items-start pt-4">
+                <div class="max-w-md">
+                  <p class="text-[10px] font-black uppercase tracking-[0.4em] text-primary opacity-70">
+                    Add to the vault
+                  </p>
+                  <h2 class="mt-2 text-4xl font-black tracking-tight">New Instrument</h2>
+                  <p class="mb-8 mt-2 text-base opacity-50">
+                    Add a guitar or bass to start building your collection.
+                  </p>
+                  <.instrument_form form={@form} submit_label="Add to vault" />
+                </div>
+              </div>
           <% end %>
         </section>
       </div>
@@ -414,7 +503,9 @@ defmodule GuitarVaultWeb.InstrumentLive.Index do
         </.inputs_for>
       </div>
       <div class="mt-4 flex gap-2">
-        <.button phx-disable-with="Saving..." class="btn btn-primary">{@submit_label}</.button>
+        <.button phx-disable-with="Saving..." class="btn btn-primary rounded-none font-bold uppercase tracking-wider">
+          {@submit_label}
+        </.button>
         {render_slot(@inner_block)}
       </div>
     </.form>

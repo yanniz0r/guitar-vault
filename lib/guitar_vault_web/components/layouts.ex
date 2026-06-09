@@ -39,30 +39,51 @@ defmodule GuitarVaultWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src={~p"/images/logo.svg"} width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
+    <header class="sticky top-0 z-50 border-b border-base-content/10 bg-base-100/80 backdrop-blur-sm">
+      <div class="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <a href="/" class="group flex items-center gap-3">
+          <div class="flex h-7 w-7 items-center justify-center rounded bg-primary text-primary-content transition-transform group-hover:scale-110">
+            <.icon name="hero-musical-note" class="h-4 w-4" />
+          </div>
+          <span class="text-[11px] font-black uppercase tracking-[0.4em]">GuitarVault</span>
         </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
+        <nav class="flex items-center gap-5">
+          <%= if @current_scope do %>
+            <.link
+              href={~p"/instruments"}
+              class="text-[11px] font-semibold uppercase tracking-widest opacity-50 transition-opacity hover:opacity-100"
+            >
+              My Vault
+            </.link>
+            <.link
+              href={~p"/users/settings"}
+              class="text-[11px] font-semibold uppercase tracking-widest opacity-50 transition-opacity hover:opacity-100"
+            >
+              Settings
+            </.link>
+            <.link
+              href={~p"/users/log-out"}
+              method="delete"
+              class="text-[11px] font-black uppercase tracking-[0.2em] border border-base-content/20 px-3 py-1 transition-colors hover:border-primary hover:text-primary"
+            >
+              Log out
+            </.link>
+          <% else %>
+            <.link
+              href={~p"/users/log-in"}
+              class="text-[11px] font-semibold uppercase tracking-widest opacity-50 transition-opacity hover:opacity-100"
+            >
+              Log in
+            </.link>
+            <.link
+              href={~p"/users/register"}
+              class="text-[11px] font-black uppercase tracking-[0.2em] border border-primary px-3 py-1 text-primary transition-colors hover:bg-primary hover:text-primary-content"
+            >
+              Register
+            </.link>
+          <% end %>
+          <.theme_toggle />
+        </nav>
       </div>
     </header>
 
