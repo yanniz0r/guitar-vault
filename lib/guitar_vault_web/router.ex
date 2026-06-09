@@ -23,6 +23,10 @@ defmodule GuitarVaultWeb.Router do
     get "/", PageController, :home
   end
 
+  scope "/" do
+    get "/health", GuitarVaultWeb.HealthController, :check
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", GuitarVaultWeb do
   #   pipe_through :api
