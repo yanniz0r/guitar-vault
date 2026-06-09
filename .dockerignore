@@ -1,0 +1,34 @@
+# Dependencies and build artifacts
+/deps
+/_build
+
+# Test database and coverage
+/cover
+*.db
+*.db-*
+
+# Digested assets (rebuilt during Docker image build)
+/priv/static/assets/
+/priv/static/cache_manifest.json
+
+# Dev uploads (the real uploads live on the Docker volume at runtime)
+/priv/uploads/
+
+# Node modules (not used in this project, but safe to exclude)
+/assets/node_modules/
+
+# Mix and Elixir tooling caches
+/.elixir_ls
+/.fetch
+*.ez
+
+# Logs and crash dumps
+erl_crash.dump
+npm-debug.log
+
+# Version control
+/.git
+/.gitignore
+
+# Editor / IDE
+.DS_Store
